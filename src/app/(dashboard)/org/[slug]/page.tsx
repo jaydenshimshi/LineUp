@@ -115,8 +115,17 @@ export default async function OrgHomePage({ params }: PageProps) {
     urgency: 'info' | 'important';
   }
 
-  const announcements = (announcementsData || []).map((a) => {
-    const dbRow = a as DbAnnouncement;
+  interface MappedAnnouncement {
+    id: string;
+    title: string;
+    message: string;
+    scope_type: 'date' | 'global';
+    scope_date: string | null;
+    urgency: 'info' | 'important';
+  }
+
+  const announcements: MappedAnnouncement[] = (announcementsData || []).map((a: DbAnnouncement) => {
+    const dbRow = a;
     return {
       id: dbRow.id,
       title: dbRow.title,

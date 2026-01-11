@@ -124,8 +124,8 @@ export default async function CheckinPage({ params }: PageProps) {
     scope_date: string | null;
   }
 
-  const announcements = (announcementsData || []).map((a) => {
-    const dbRow = a as DbAnnouncement;
+  const announcements = (announcementsData || []).map((a: DbAnnouncement) => {
+    const dbRow = a;
     return {
       id: dbRow.id,
       title: dbRow.title,

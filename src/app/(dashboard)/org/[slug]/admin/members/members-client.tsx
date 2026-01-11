@@ -404,7 +404,7 @@ export function MembersClient({
             <AlertDialogDescription>
               Are you sure you want to remove{' '}
               <span className="font-medium">
-                {memberToRemove?.players?.full_name || memberToRemove?.users.email}
+                {memberToRemove?.players?.full_name || memberToRemove?.users?.email}
               </span>{' '}
               from {orgName}? They will need to rejoin with a new invite code.
             </AlertDialogDescription>
