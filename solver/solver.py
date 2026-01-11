@@ -15,14 +15,25 @@ Version: 4.0 - Robust Position-Aware
 """
 
 import logging
+import os
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Tuple, Any
 from enum import Enum
 from copy import deepcopy
+from datetime import datetime
 import random
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Debug file path - in the solver directory
+DEBUG_FILE = os.path.join(os.path.dirname(__file__), 'solver_debug.log')
+
+def debug_log(message: str):
+    """Write debug message to file"""
+    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    with open(DEBUG_FILE, 'a') as f:
+        f.write(f"[{timestamp}] {message}\n")
 
 
 # =============================================================================
@@ -470,7 +481,11 @@ def solve_teams(
     random.seed(seed)
 
     n = len(players)
-    logger.info(f"Solving for {n} players with robust algorithm")
+    debug_log(f"========== NEW SOLVE REQUEST ==========")
+    debug_log(f"Solving for {n} players:")
+    for p in players:
+        alt = p.alt_pos.value if p.alt_pos else "none"
+        debug_log(f"  - {p.name}: {p.rating}★ {p.main_pos.value} (alt: {alt})")
 
     if n < 6:
         return SolveResult(
@@ -516,7 +531,7 @@ def solve_teams(
                 "details": details,
             })
 
-            logger.info(f"Strategy '{strategy_name}': score={score:.1f}, skill_gap={details.get('skill_gap', '?')}")
+            debug_log(f"Strategy '{strategy_name}': score={score:.1f}, skill_gap={details.get('skill_gap', '?')}, details={details.get('position_details', [])}")
 
             if score < best_score:
                 best_score = score
@@ -524,7 +539,7 @@ def solve_teams(
                 best_strategy = strategy_name
 
         except Exception as e:
-            logger.error(f"Strategy '{strategy_name}' failed: {e}")
+            debug_log(f"Strategy '{strategy_name}' FAILED: {e}")
 
     if best_teams is None:
         return SolveResult(
@@ -532,7 +547,7 @@ def solve_teams(
             message="All strategies failed to produce valid teams.",
         )
 
-    logger.info(f"Best strategy: '{best_strategy}' with score {best_score:.1f}")
+    debug_log(f"*** BEST STRATEGY: '{best_strategy}' with score {best_score:.1f} ***")
 
     # ==========================================================================
     # Assign roles intelligently
@@ -631,7 +646,13 @@ def solve_teams(
         warnings.append(f"Skill gap of {skill_gap} points between teams")
 
     solve_time_ms = (time.time() - start_time) * 1000
-    logger.info(f"Solution found in {solve_time_ms:.2f}ms using '{best_strategy}'")
+
+    # Log final team compositions
+    debug_log(f"Final teams:")
+    for t, team in enumerate(best_teams):
+        players_str = ", ".join([f"{p.name}({p.rating}★ {p.main_pos.value})" for p in team])
+        debug_log(f"  Team {t}: [{players_str}] = {sum(p.rating for p in team)} pts")
+    debug_log(f"Solution found in {solve_time_ms:.2f}ms using '{best_strategy}'")
 
     return SolveResult(
         success=True,
