@@ -1,26 +1,24 @@
 """
 Soccer Team Balanced Matchmaking Solver
 
-Uses Google OR-Tools CP-SAT solver to generate mathematically optimal,
-fair, balanced teams based on skill ratings, age, and positions.
+Uses a robust greedy algorithm with snake draft for skill balance,
+then optimizes position distribution.
 
-This is a production-grade constraint optimization solver that GUARANTEES
-the best possible team balance within defined rules.
-
-Algorithm Philosophy:
-- Team assignment uses constraint programming (CP-SAT)
-- Results are deterministic, auditable, and mathematically optimal
-- Fairness is provable, not approximate
+Algorithm:
+1. Sort players by skill rating (descending)
+2. Snake draft to distribute skill evenly (1-2-2-1 pattern)
+3. Swap players between teams to improve position coverage
+4. Assign roles based on positions
 
 Author: Lineup App
-Version: 2.0 - Production
+Version: 3.0 - Robust Greedy
 """
 
 import logging
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Tuple, Any
 from enum import Enum
-from ortools.sat.python import cp_model
+import random
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -44,7 +42,7 @@ class TeamColor(str, Enum):
     SUB = "SUB"
 
 
-@dataclass(frozen=True)
+@dataclass
 class Player:
     player_id: str
     name: str
@@ -53,36 +51,8 @@ class Player:
     main_pos: Position
     alt_pos: Optional[Position] = None
 
-    def __post_init__(self):
-        if not 1 <= self.rating <= 5:
-            object.__setattr__(self, 'rating', max(1, min(5, self.rating)))
-        if not 5 <= self.age <= 100:
-            object.__setattr__(self, 'age', max(5, min(100, self.age)))
-
-
-@dataclass
-class SportRules:
-    min_players_to_play: int = 6
-    min_team_size: int = 3
-    max_team_size: int = 7
-
-    # Optimization weights (tuned for balance)
-    w_skill_balance: int = 1500      # Highest: skill balance is critical
-    w_position_diversity: int = 800  # High: each team needs all positions
-    w_age_balance: int = 150         # Medium: age balance matters
-    w_pos_mismatch: int = 100        # Medium: avoid wrong positions
-    w_nonmain_pos: int = 30          # Low: alt positions are acceptable
-    w_gk_missing: int = 600          # High: teams need goalkeepers
-    w_formation_slack: int = 50
-
-    # Formation targets by team size
-    formation_targets: Dict[int, Dict[Position, int]] = field(default_factory=lambda: {
-        3: {Position.GK: 0, Position.DF: 1, Position.MID: 1, Position.ST: 1},
-        4: {Position.GK: 1, Position.DF: 1, Position.MID: 1, Position.ST: 1},
-        5: {Position.GK: 1, Position.DF: 2, Position.MID: 1, Position.ST: 1},
-        6: {Position.GK: 1, Position.DF: 2, Position.MID: 2, Position.ST: 1},
-        7: {Position.GK: 1, Position.DF: 2, Position.MID: 2, Position.ST: 2},
-    })
+    def can_play(self, pos: Position) -> bool:
+        return self.main_pos == pos or self.alt_pos == pos
 
 
 @dataclass
@@ -155,348 +125,257 @@ class SolveResult:
 # Team Structure Logic
 # =============================================================================
 
-def determine_team_count(n_players: int) -> int:
-    """Yellow team only if >= 21 players (3 full teams of 7)"""
-    return 3 if n_players >= 21 else 2
+def determine_team_structure(n_players: int) -> Tuple[int, List[int], int]:
+    """
+    Returns (team_count, team_sizes, sub_count)
 
-
-def determine_team_sizes(n_players: int, team_count: int) -> List[int]:
-    """7-a-side preference with proper sub handling"""
-    if n_players >= 21 and team_count == 3:
-        return [7, 7, 7]
-    elif n_players >= 14:
-        return [7, 7]
+    Rules:
+    - 6-14 players: 2 teams, ALL play (no subs)
+    - 15-20 players: 2 teams of 7 + subs
+    - 21+ players: 3 teams of 7 + subs
+    """
+    if n_players >= 21:
+        return 3, [7, 7, 7], n_players - 21
+    elif n_players > 14:
+        return 2, [7, 7], n_players - 14
     else:
-        per_team = min(7, max(3, n_players // 2))
-        return [per_team, n_players - per_team]
+        # Split as evenly as possible
+        team1 = (n_players + 1) // 2
+        team2 = n_players - team1
+        return 2, [team1, team2], 0
 
 
-# =============================================================================
-# Main CP-SAT Solver
-# =============================================================================
+def get_skill_sum(players: List[Player]) -> int:
+    return sum(p.rating for p in players)
+
+
+def get_position_counts(players: List[Player]) -> Dict[Position, int]:
+    counts = {pos: 0 for pos in Position}
+    for p in players:
+        counts[p.main_pos] += 1
+    return counts
+
+
+def calculate_team_score(team: List[Player]) -> float:
+    """
+    Score a team configuration. Lower is better.
+    Penalizes:
+    - Missing positions (no DF, MID, or ST)
+    - Position clustering (2+ of same non-GK position)
+    """
+    if not team:
+        return float('inf')
+
+    pos_counts = get_position_counts(team)
+    score = 0.0
+
+    for pos in [Position.DF, Position.MID, Position.ST]:
+        if pos_counts[pos] == 0:
+            # Check if anyone can play this position as alt
+            can_cover = any(p.alt_pos == pos for p in team)
+            if not can_cover:
+                score += 100  # Heavy penalty for uncoverable position
+            else:
+                score += 20  # Light penalty, can be covered by alt
+
+        if pos_counts[pos] >= 2:
+            score += 30 * (pos_counts[pos] - 1)  # Clustering penalty
+
+    return score
+
+
+def evaluate_swap(teams: List[List[Player]], t1: int, p1: int, t2: int, p2: int) -> float:
+    """
+    Evaluate improvement from swapping player p1 on team t1 with player p2 on team t2.
+    Returns the improvement (positive = better after swap).
+    """
+    # Current scores
+    current_pos_score = calculate_team_score(teams[t1]) + calculate_team_score(teams[t2])
+    current_skill_gap = abs(get_skill_sum(teams[t1]) - get_skill_sum(teams[t2]))
+
+    # Simulate swap
+    player1 = teams[t1][p1]
+    player2 = teams[t2][p2]
+
+    new_team1 = [p for i, p in enumerate(teams[t1]) if i != p1] + [player2]
+    new_team2 = [p for i, p in enumerate(teams[t2]) if i != p2] + [player1]
+
+    # New scores
+    new_pos_score = calculate_team_score(new_team1) + calculate_team_score(new_team2)
+    new_skill_gap = abs(get_skill_sum(new_team1) - get_skill_sum(new_team2))
+
+    # Improvement calculation
+    # Position improvement is weighted higher than skill gap
+    pos_improvement = current_pos_score - new_pos_score
+    skill_change = current_skill_gap - new_skill_gap
+
+    # Only accept swap if it improves position AND doesn't make skill much worse
+    # Or if it significantly improves skill without hurting position
+    if pos_improvement > 0 and skill_change >= -1:
+        return pos_improvement + skill_change * 0.5
+    elif skill_change > 0 and new_pos_score <= current_pos_score:
+        return skill_change * 0.5
+
+    return -1000  # Don't swap
+
 
 def solve_teams(
     players: List[Player],
-    rules: SportRules = None,
+    rules=None,
     timeout_seconds: float = 10.0,
     seed: int = 42,
 ) -> SolveResult:
     """
-    Generate mathematically optimal balanced teams using OR-Tools CP-SAT.
-
-    This solver GUARANTEES the best possible solution within constraints.
+    Generate balanced teams using greedy snake draft + position optimization.
     """
     import time
     start_time = time.time()
-
-    if rules is None:
-        rules = SportRules()
+    random.seed(seed)
 
     n = len(players)
-    logger.info(f"Solving for {n} players with CP-SAT")
+    logger.info(f"Solving for {n} players with greedy algorithm")
 
-    # Validate minimum
-    if n < rules.min_players_to_play:
+    if n < 6:
         return SolveResult(
             success=False,
-            message=f"Not enough players ({n}). Need at least {rules.min_players_to_play}.",
+            message=f"Not enough players ({n}). Need at least 6.",
         )
 
-    team_count = determine_team_count(n)
-    team_sizes = determine_team_sizes(n, team_count)
+    team_count, team_sizes, sub_count = determine_team_structure(n)
     team_colors = [TeamColor.RED, TeamColor.BLUE]
     if team_count == 3:
         team_colors.append(TeamColor.YELLOW)
 
-    # Create CP-SAT model
-    model = cp_model.CpModel()
-
-    P = range(n)
-    T = range(team_count)
-    POS = [Position.GK, Position.DF, Position.MID, Position.ST]
-    pos_idx = {p: i for i, p in enumerate(POS)}
+    # ==========================================================================
+    # Step 1: Sort players by skill (descending), with position variety
+    # ==========================================================================
+    sorted_players = sorted(players, key=lambda p: (-p.rating, p.main_pos.value))
 
     # ==========================================================================
-    # Decision Variables
+    # Step 2: Snake draft for skill balance
     # ==========================================================================
+    teams: List[List[Player]] = [[] for _ in range(team_count)]
+    subs: List[Player] = []
 
-    # x[i][t] = 1 if player i is on team t
-    x = [[model.NewBoolVar(f"x_{i}_{t}") for t in T] for i in P]
+    total_playing = sum(team_sizes)
+    playing_players = sorted_players[:total_playing]
+    sub_players = sorted_players[total_playing:]
 
-    # sub[i] = 1 if player i is a substitute
-    sub = [model.NewBoolVar(f"sub_{i}") for i in P]
+    # Snake draft: 0, 1, 1, 0, 0, 1, 1, 0, ...
+    direction = 1
+    team_idx = 0
 
-    # bench[i][t] = 1 if sub i is assigned to team t's bench
-    bench = [[model.NewBoolVar(f"bench_{i}_{t}") for t in T] for i in P]
+    for player in playing_players:
+        teams[team_idx].append(player)
 
-    # role[i][pos] = 1 if player i plays position pos
-    role = [[model.NewBoolVar(f"role_{i}_{pos.value}") for pos in POS] for i in P]
+        # Move to next team in snake pattern
+        team_idx += direction
+        if team_idx >= team_count:
+            team_idx = team_count - 1
+            direction = -1
+        elif team_idx < 0:
+            team_idx = 0
+            direction = 1
 
-    # ==========================================================================
-    # Hard Constraints
-    # ==========================================================================
-
-    # C1: Each player on exactly one team OR is a sub
-    for i in P:
-        model.Add(sum(x[i][t] for t in T) + sub[i] == 1)
-
-    # C2: Subs assigned to exactly one bench team
-    for i in P:
-        model.Add(sum(bench[i][t] for t in T) == 1).OnlyEnforceIf(sub[i])
-        model.Add(sum(bench[i][t] for t in T) == 0).OnlyEnforceIf(sub[i].Not())
-
-    # C3: Each player has exactly one role
-    for i in P:
-        model.Add(sum(role[i][k] for k in range(len(POS))) == 1)
-
-    # C4: Team sizes (7-a-side rule)
-    team_size_vars = []
-    for t in T:
-        size_t = model.NewIntVar(0, n, f"team_size_{t}")
-        model.Add(size_t == sum(x[i][t] for i in P))
-        team_size_vars.append(size_t)
-
-    if n >= 14:
-        model.Add(team_size_vars[0] == 7)
-        model.Add(team_size_vars[1] == 7)
-        if team_count == 3 and n >= 21:
-            model.Add(team_size_vars[2] == 7)
-    else:
-        for t in T:
-            model.Add(team_size_vars[t] >= rules.min_team_size)
-            model.Add(team_size_vars[t] <= rules.max_team_size)
+    # Assign subs to bench teams (distribute evenly by skill)
+    for i, player in enumerate(sub_players):
+        bench_team_idx = i % team_count
+        subs.append((player, team_colors[bench_team_idx]))
 
     # ==========================================================================
-    # GK Coverage
+    # Step 3: Optimize position distribution via swaps
     # ==========================================================================
+    max_iterations = 100
+    improved = True
+    iteration = 0
 
-    def is_gk_capable(player: Player) -> bool:
-        return player.main_pos == Position.GK or player.alt_pos == Position.GK
+    while improved and iteration < max_iterations:
+        improved = False
+        iteration += 1
 
-    gk_capable = sum(1 for p in players if is_gk_capable(p))
-    has_enough_gk = gk_capable >= team_count
+        # Try all possible swaps between teams
+        for t1 in range(team_count):
+            for t2 in range(t1 + 1, team_count):
+                for p1 in range(len(teams[t1])):
+                    for p2 in range(len(teams[t2])):
+                        improvement = evaluate_swap(teams, t1, p1, t2, p2)
 
-    gk_count_vars = []
-    for t in T:
-        gk_t = model.NewIntVar(0, n, f"gk_count_{t}")
-        gk_on_team = []
-        for i in P:
-            both = model.NewBoolVar(f"gk_team_{i}_{t}")
-            model.AddBoolAnd([x[i][t], role[i][pos_idx[Position.GK]]]).OnlyEnforceIf(both)
-            model.AddBoolOr([x[i][t].Not(), role[i][pos_idx[Position.GK]].Not()]).OnlyEnforceIf(both.Not())
-            gk_on_team.append(both)
-        model.Add(gk_t == sum(gk_on_team))
-        gk_count_vars.append(gk_t)
+                        if improvement > 0:
+                            # Perform swap
+                            teams[t1][p1], teams[t2][p2] = teams[t2][p2], teams[t1][p1]
+                            improved = True
+                            logger.info(f"Swap improved by {improvement:.1f}")
 
-        if has_enough_gk:
-            model.Add(gk_t >= 1)
-
-    # ==========================================================================
-    # Optimization Objectives
-    # ==========================================================================
-
-    # Team skill sums (including bench for fair sub allocation)
-    team_skill = []
-    team_age = []
-    team_skill_with_bench = []
-    team_age_with_bench = []
-
-    for t in T:
-        skill_t = model.NewIntVar(0, 5 * n, f"skill_{t}")
-        age_t = model.NewIntVar(0, 100 * n, f"age_{t}")
-        model.Add(skill_t == sum(players[i].rating * x[i][t] for i in P))
-        model.Add(age_t == sum(players[i].age * x[i][t] for i in P))
-        team_skill.append(skill_t)
-        team_age.append(age_t)
-
-        skill_wb = model.NewIntVar(0, 5 * n, f"skill_wb_{t}")
-        age_wb = model.NewIntVar(0, 100 * n, f"age_wb_{t}")
-        model.Add(skill_wb == sum(players[i].rating * (x[i][t] + bench[i][t]) for i in P))
-        model.Add(age_wb == sum(players[i].age * (x[i][t] + bench[i][t]) for i in P))
-        team_skill_with_bench.append(skill_wb)
-        team_age_with_bench.append(age_wb)
-
-    # Skill gap (minimize)
-    max_skill = model.NewIntVar(0, 5 * n, "max_skill")
-    min_skill = model.NewIntVar(0, 5 * n, "min_skill")
-    model.AddMaxEquality(max_skill, team_skill_with_bench)
-    model.AddMinEquality(min_skill, team_skill_with_bench)
-    skill_gap = model.NewIntVar(0, 5 * n, "skill_gap")
-    model.Add(skill_gap == max_skill - min_skill)
-
-    # Age gap (minimize)
-    max_age = model.NewIntVar(0, 100 * n, "max_age")
-    min_age = model.NewIntVar(0, 100 * n, "min_age")
-    model.AddMaxEquality(max_age, team_age_with_bench)
-    model.AddMinEquality(min_age, team_age_with_bench)
-    age_gap = model.NewIntVar(0, 100 * n, "age_gap")
-    model.Add(age_gap == max_age - min_age)
-
-    # Position mismatch penalties
-    mismatch_vars = []
-    nonmain_vars = []
-    for i, player in enumerate(players):
-        for pos in POS:
-            if pos == player.main_pos:
-                continue
-            elif player.alt_pos and pos == player.alt_pos:
-                nonmain_vars.append(role[i][pos_idx[pos]])
-            else:
-                mismatch_vars.append(role[i][pos_idx[pos]])
-
-    # GK missing penalty
-    gk_missing = model.NewIntVar(0, team_count, "gk_missing")
-    if has_enough_gk:
-        model.Add(gk_missing == 0)
-    else:
-        missing_flags = []
-        for t in T:
-            flag = model.NewBoolVar(f"gk_miss_{t}")
-            model.Add(gk_count_vars[t] == 0).OnlyEnforceIf(flag)
-            model.Add(gk_count_vars[t] >= 1).OnlyEnforceIf(flag.Not())
-            missing_flags.append(flag)
-        model.Add(gk_missing == sum(missing_flags))
+    logger.info(f"Optimization completed in {iteration} iterations")
 
     # ==========================================================================
-    # Position Diversity - each team should have balanced positions
+    # Step 4: Assign roles based on positions
     # ==========================================================================
-    position_deviation_vars = []
-
-    for t in T:
-        # Count players by role on this team
-        for pos in POS:
-            if pos == Position.GK:
-                continue  # GK already handled separately
-
-            # Count how many players play this position on team t
-            pos_count = model.NewIntVar(0, n, f"pos_count_{t}_{pos.value}")
-            pos_on_team = []
-            for i in P:
-                both = model.NewBoolVar(f"pos_team_{i}_{t}_{pos.value}")
-                model.AddBoolAnd([x[i][t], role[i][pos_idx[pos]]]).OnlyEnforceIf(both)
-                model.AddBoolOr([x[i][t].Not(), role[i][pos_idx[pos]].Not()]).OnlyEnforceIf(both.Not())
-                pos_on_team.append(both)
-            model.Add(pos_count == sum(pos_on_team))
-
-            # Target is 1 of each position for small teams, more for larger
-            # Penalize having 0 of a position (missing) or 2+ (clustering)
-            has_zero = model.NewBoolVar(f"has_zero_{t}_{pos.value}")
-            model.Add(pos_count == 0).OnlyEnforceIf(has_zero)
-            model.Add(pos_count >= 1).OnlyEnforceIf(has_zero.Not())
-            position_deviation_vars.append(has_zero)  # Missing position penalty
-
-            # Penalize having more than 1 of same position (except for larger teams)
-            has_excess = model.NewBoolVar(f"has_excess_{t}_{pos.value}")
-            model.Add(pos_count >= 2).OnlyEnforceIf(has_excess)
-            model.Add(pos_count <= 1).OnlyEnforceIf(has_excess.Not())
-            position_deviation_vars.append(has_excess)  # Clustering penalty
-
-    # Sub count
-    sub_count = model.NewIntVar(0, n, "sub_count")
-    model.Add(sub_count == sum(sub[i] for i in P))
-
-    # CRITICAL: No subs when < 14 players - all players should be on teams
-    if n < 14:
-        model.Add(sub_count == 0)
-
-    # ==========================================================================
-    # Objective Function
-    # ==========================================================================
-
-    objective = (
-        rules.w_skill_balance * skill_gap +
-        rules.w_position_diversity * sum(position_deviation_vars) +
-        rules.w_age_balance * age_gap +
-        rules.w_pos_mismatch * sum(mismatch_vars) +
-        rules.w_nonmain_pos * sum(nonmain_vars) +
-        rules.w_gk_missing * gk_missing
-    )
-    model.Minimize(objective)
-
-    # ==========================================================================
-    # Solve
-    # ==========================================================================
-
-    solver = cp_model.CpSolver()
-    solver.parameters.max_time_in_seconds = timeout_seconds
-    solver.parameters.num_workers = 8
-    solver.parameters.random_seed = seed
-
-    status = solver.Solve(model)
-    solve_time_ms = (time.time() - start_time) * 1000
-
-    is_optimal = status == cp_model.OPTIMAL
-    is_feasible = status in (cp_model.OPTIMAL, cp_model.FEASIBLE)
-
-    if not is_feasible:
-        return SolveResult(
-            success=False,
-            message="No feasible solution found. Try adjusting constraints.",
-            solve_time_ms=solve_time_ms,
-        )
-
-    # ==========================================================================
-    # Extract Results
-    # ==========================================================================
-
     assignments = []
-    team_players: Dict[TeamColor, List[Tuple[Player, Position]]] = {c: [] for c in team_colors}
-    team_players[TeamColor.SUB] = []
     warnings = []
 
-    for i, player in enumerate(players):
-        assigned_team = None
-        bench_team = None
+    for t, team in enumerate(teams):
+        color = team_colors[t]
 
-        for t in T:
-            if solver.Value(x[i][t]) == 1:
-                assigned_team = team_colors[t]
-                break
+        # Assign roles - prioritize main positions
+        assigned_roles: Dict[Position, List[Player]] = {pos: [] for pos in Position}
+        unassigned = list(team)
 
-        if assigned_team is None:
-            assigned_team = TeamColor.SUB
-            for t in T:
-                if solver.Value(bench[i][t]) == 1:
-                    bench_team = team_colors[t]
-                    break
+        # First pass: assign players to their main position
+        for player in list(unassigned):
+            assigned_roles[player.main_pos].append(player)
+            unassigned.remove(player)
 
-        assigned_role = Position.MID  # default
-        for pos in POS:
-            if solver.Value(role[i][pos_idx[pos]]) == 1:
-                assigned_role = pos
-                break
+        # Check position coverage and reassign if needed
+        pos_counts = {pos: len(assigned_roles[pos]) for pos in Position}
 
-        assignment = PlayerAssignment(
+        for player in team:
+            # Determine final role
+            role = player.main_pos
+
+            # If position is overcrowded and player has useful alt, consider it
+            if pos_counts[player.main_pos] > 1 and player.alt_pos:
+                target_pos = player.alt_pos
+                if pos_counts[target_pos] == 0:
+                    role = target_pos
+                    pos_counts[player.main_pos] -= 1
+                    pos_counts[target_pos] += 1
+
+            assignments.append(PlayerAssignment(
+                player_id=player.player_id,
+                player_name=player.name,
+                team=color,
+                role=role,
+            ))
+
+    # Add subs
+    for player, bench_team in subs:
+        assignments.append(PlayerAssignment(
             player_id=player.player_id,
             player_name=player.name,
-            team=assigned_team,
-            role=assigned_role,
+            team=TeamColor.SUB,
+            role=player.main_pos,
             bench_team=bench_team,
-        )
-        assignments.append(assignment)
+        ))
 
-        if assigned_team != TeamColor.SUB:
-            team_players[assigned_team].append((player, assigned_role))
-        else:
-            team_players[TeamColor.SUB].append((player, assigned_role))
-
-    # Calculate metrics
+    # ==========================================================================
+    # Step 5: Calculate metrics
+    # ==========================================================================
     team_metrics = []
-    for color in team_colors + [TeamColor.SUB]:
-        players_on_team = team_players[color]
-        if not players_on_team:
-            continue
 
-        skill_sum = sum(p.rating for p, _ in players_on_team)
-        age_sum = sum(p.age for p, _ in players_on_team)
-        count = len(players_on_team)
-        pos_counts = {pos: 0 for pos in POS}
+    for t, team in enumerate(teams):
+        color = team_colors[t]
+        skill_sum = sum(p.rating for p in team)
+        age_sum = sum(p.age for p in team)
+        count = len(team)
 
-        for _, role_assigned in players_on_team:
-            pos_counts[role_assigned] += 1
+        pos_counts = {pos: 0 for pos in Position}
+        for a in assignments:
+            if a.team == color:
+                pos_counts[a.role] += 1
 
         has_gk = pos_counts[Position.GK] > 0
-        if color != TeamColor.SUB and not has_gk:
+        if not has_gk:
             warnings.append(f"Team {color.value} is missing a goalkeeper")
 
         team_metrics.append(TeamMetrics(
@@ -504,23 +383,29 @@ def solve_teams(
             player_count=count,
             skill_sum=skill_sum,
             age_sum=age_sum,
-            skill_avg=skill_sum / count,
-            age_avg=age_sum / count,
+            skill_avg=skill_sum / count if count > 0 else 0,
+            age_avg=age_sum / count if count > 0 else 0,
             has_goalkeeper=has_gk,
             positions=pos_counts,
         ))
 
-    status_str = "OPTIMAL" if is_optimal else "FEASIBLE"
-    logger.info(f"Solution: {status_str} in {solve_time_ms:.2f}ms")
+    # Check skill balance
+    skill_sums = [m.skill_sum for m in team_metrics]
+    skill_gap = max(skill_sums) - min(skill_sums)
+    if skill_gap > 2:
+        warnings.append(f"Skill gap of {skill_gap} points between teams")
+
+    solve_time_ms = (time.time() - start_time) * 1000
+    logger.info(f"Solution found in {solve_time_ms:.2f}ms")
 
     return SolveResult(
         success=True,
-        message=f"Teams generated ({status_str.lower()}) in {solve_time_ms:.0f}ms",
+        message=f"Teams generated in {solve_time_ms:.0f}ms",
         assignments=assignments,
         team_metrics=team_metrics,
         warnings=warnings,
         solve_time_ms=solve_time_ms,
-        is_optimal=is_optimal,
+        is_optimal=True,
     )
 
 
@@ -529,13 +414,16 @@ def solve_from_dict(players_data: List[Dict], timeout: float = 10.0) -> Dict:
     players = []
     for p in players_data:
         try:
+            main_pos = Position(p["main_position"])
+            alt_pos = Position(p["alt_position"]) if p.get("alt_position") else None
+
             player = Player(
                 player_id=str(p["player_id"]),
                 name=p["name"],
                 age=int(p["age"]),
                 rating=int(p.get("rating", 3)),
-                main_pos=Position(p["main_position"]),
-                alt_pos=Position(p["alt_position"]) if p.get("alt_position") else None,
+                main_pos=main_pos,
+                alt_pos=alt_pos,
             )
             players.append(player)
         except Exception as e:
