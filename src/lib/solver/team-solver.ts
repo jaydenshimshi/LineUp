@@ -56,17 +56,18 @@ const CONFIG = {
   MAX_TEAM_SIZE: 7,
   THREE_TEAM_THRESHOLD: 21, // 3 teams only when 21+ players
 
-  // Optimization weights (higher = more important)
-  W_SKILL_BALANCE: 1000,    // Most important: balanced skill
-  W_AGE_BALANCE: 100,       // Secondary: balanced age
-  W_POSITION_COVERAGE: 500, // Important: proper position distribution
-  W_GK_COVERAGE: 800,       // Very important: each team has a GK
+  // Optimization weights (tuned for balance)
+  W_SKILL_BALANCE: 1500,       // Highest: skill balance is critical
+  W_POSITION_DIVERSITY: 800,   // High: penalize missing/excess positions
+  W_AGE_BALANCE: 100,          // Medium: balanced age
+  W_POSITION_COVERAGE: 500,    // Medium: proper position distribution
+  W_GK_COVERAGE: 600,          // High: each team has a GK
 
   // Simulated annealing parameters
-  SA_INITIAL_TEMP: 100,
-  SA_COOLING_RATE: 0.995,
-  SA_MIN_TEMP: 0.1,
-  SA_ITERATIONS_PER_TEMP: 100,
+  SA_INITIAL_TEMP: 150,
+  SA_COOLING_RATE: 0.993,
+  SA_MIN_TEMP: 0.05,
+  SA_ITERATIONS_PER_TEMP: 150,
 
   // Target formations by team size
   // Format: [GK, DF, MID, ST]
@@ -256,20 +257,43 @@ function calculateObjective(state: SolutionState): number {
       score += CONFIG.W_POSITION_COVERAGE * shortfall;
     }
 
-    // Heavy penalty if a single position dominates (even with alts)
+    // Count main positions for diversity check
     const mainPositions: Record<Position, number> = { GK: 0, DF: 0, MID: 0, ST: 0 };
     for (const player of stat.players) {
       mainPositions[player.mainPosition]++;
     }
 
+    // Position diversity: penalize missing positions and clustering
     for (const pos of ['DF', 'MID', 'ST'] as Position[]) {
-      if (mainPositions[pos] > stat.size * 0.6) {
-        score += CONFIG.W_POSITION_COVERAGE * 2;
+      // Heavy penalty for missing a position entirely
+      if (mainPositions[pos] === 0) {
+        score += CONFIG.W_POSITION_DIVERSITY;
+      }
+      // Penalty for having 2+ of same position (clustering)
+      if (mainPositions[pos] >= 2) {
+        score += CONFIG.W_POSITION_DIVERSITY * 0.8;
       }
     }
   }
 
-  // 5. Versatility balance - teams should have similar flexibility
+  // 5. Cross-team position balance - positions should be distributed evenly
+  const positions: Position[] = ['DF', 'MID', 'ST'];
+  for (const pos of positions) {
+    const posCounts = activeTeams.map(t => {
+      let count = 0;
+      for (const player of t.players) {
+        if (player.mainPosition === pos) count++;
+      }
+      return count;
+    });
+    const posGap = Math.max(...posCounts) - Math.min(...posCounts);
+    // Penalize if one team has 2+ more of a position than another
+    if (posGap >= 2) {
+      score += CONFIG.W_POSITION_DIVERSITY * 0.5 * posGap;
+    }
+  }
+
+  // 6. Versatility balance - teams should have similar flexibility
   const versatilityScores = activeTeams.map(t =>
     t.players.filter(p => p.altPosition).length / Math.max(1, t.size)
   );

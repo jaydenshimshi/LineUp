@@ -66,12 +66,13 @@ class SportRules:
     min_team_size: int = 3
     max_team_size: int = 7
 
-    # Optimization weights
-    w_skill_balance: int = 1000
-    w_age_balance: int = 200
-    w_pos_mismatch: int = 80
-    w_nonmain_pos: int = 20
-    w_gk_missing: int = 500
+    # Optimization weights (tuned for balance)
+    w_skill_balance: int = 1500      # Highest: skill balance is critical
+    w_position_diversity: int = 800  # High: each team needs all positions
+    w_age_balance: int = 150         # Medium: age balance matters
+    w_pos_mismatch: int = 100        # Medium: avoid wrong positions
+    w_nonmain_pos: int = 30          # Low: alt positions are acceptable
+    w_gk_missing: int = 600          # High: teams need goalkeepers
     w_formation_slack: int = 50
 
     # Formation targets by team size
@@ -356,6 +357,40 @@ def solve_teams(
             missing_flags.append(flag)
         model.Add(gk_missing == sum(missing_flags))
 
+    # ==========================================================================
+    # Position Diversity - each team should have balanced positions
+    # ==========================================================================
+    position_deviation_vars = []
+
+    for t in T:
+        # Count players by role on this team
+        for pos in POS:
+            if pos == Position.GK:
+                continue  # GK already handled separately
+
+            # Count how many players play this position on team t
+            pos_count = model.NewIntVar(0, n, f"pos_count_{t}_{pos.value}")
+            pos_on_team = []
+            for i in P:
+                both = model.NewBoolVar(f"pos_team_{i}_{t}_{pos.value}")
+                model.AddBoolAnd([x[i][t], role[i][pos_idx[pos]]]).OnlyEnforceIf(both)
+                model.AddBoolOr([x[i][t].Not(), role[i][pos_idx[pos]].Not()]).OnlyEnforceIf(both.Not())
+                pos_on_team.append(both)
+            model.Add(pos_count == sum(pos_on_team))
+
+            # Target is 1 of each position for small teams, more for larger
+            # Penalize having 0 of a position (missing) or 2+ (clustering)
+            has_zero = model.NewBoolVar(f"has_zero_{t}_{pos.value}")
+            model.Add(pos_count == 0).OnlyEnforceIf(has_zero)
+            model.Add(pos_count >= 1).OnlyEnforceIf(has_zero.Not())
+            position_deviation_vars.append(has_zero)  # Missing position penalty
+
+            # Penalize having more than 1 of same position (except for larger teams)
+            has_excess = model.NewBoolVar(f"has_excess_{t}_{pos.value}")
+            model.Add(pos_count >= 2).OnlyEnforceIf(has_excess)
+            model.Add(pos_count <= 1).OnlyEnforceIf(has_excess.Not())
+            position_deviation_vars.append(has_excess)  # Clustering penalty
+
     # Sub count
     sub_count = model.NewIntVar(0, n, "sub_count")
     model.Add(sub_count == sum(sub[i] for i in P))
@@ -370,6 +405,7 @@ def solve_teams(
 
     objective = (
         rules.w_skill_balance * skill_gap +
+        rules.w_position_diversity * sum(position_deviation_vars) +
         rules.w_age_balance * age_gap +
         rules.w_pos_mismatch * sum(mismatch_vars) +
         rules.w_nonmain_pos * sum(nonmain_vars) +

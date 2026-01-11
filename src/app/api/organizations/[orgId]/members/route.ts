@@ -246,7 +246,43 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       }
     }
 
-    // Remove member using admin client to bypass RLS
+    // Get player ID for this user in this org (if exists)
+    const { data: playerData } = await adminSupabase
+      .from('players')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('organization_id', orgId)
+      .single();
+
+    const playerId = (playerData as { id: string } | null)?.id;
+
+    if (playerId) {
+      // Delete team assignments for this player
+      await adminSupabase
+        .from('team_assignments')
+        .delete()
+        .eq('player_id', playerId);
+
+      // Delete ratings for this player
+      await adminSupabase
+        .from('player_admin_ratings')
+        .delete()
+        .eq('player_id', playerId);
+
+      // Delete check-ins for this player
+      await adminSupabase
+        .from('checkins')
+        .delete()
+        .eq('player_id', playerId);
+
+      // Delete the player record
+      await adminSupabase
+        .from('players')
+        .delete()
+        .eq('id', playerId);
+    }
+
+    // Remove membership using admin client to bypass RLS
     const { error } = await adminSupabase
       .from('memberships')
       .delete()
