@@ -482,6 +482,7 @@ def solve_teams(
 
     n = len(players)
     debug_log(f"========== NEW SOLVE REQUEST ==========")
+    debug_log(f"SOLVER: Python OR-Tools v4.0")
     debug_log(f"Solving for {n} players:")
     for p in players:
         alt = p.alt_pos.value if p.alt_pos else "none"

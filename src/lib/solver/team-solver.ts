@@ -426,6 +426,10 @@ export function solveTeams(players: Player[]): SolveResult {
   const startTime = Date.now();
   const n = players.length;
 
+  console.log(`[SOLVER] ========== NEW SOLVE REQUEST ==========`);
+  console.log(`[SOLVER] SOLVER: TypeScript Fallback v4.0`);
+  console.log(`[SOLVER] Solving for ${n} players`);
+
   if (n < 6) {
     return {
       success: false,
