@@ -1,0 +1,11 @@
+# Render deployment configuration
+services:
+  - type: web
+    name: lineup-solver
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
