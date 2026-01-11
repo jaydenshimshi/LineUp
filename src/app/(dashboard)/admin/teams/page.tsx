@@ -8,6 +8,8 @@ import { TeamsClient } from './teams-client';
 import type { Metadata } from 'next';
 import type { CheckedInPlayer } from '@/types/team-generation';
 
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: 'Team Generator - Admin',
   description: 'Generate and manage teams',

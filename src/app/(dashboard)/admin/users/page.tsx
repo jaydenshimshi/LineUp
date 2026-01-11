@@ -6,6 +6,8 @@ import { createClient } from '@/lib/supabase/server';
 import { UsersClient } from './users-client';
 import type { Metadata } from 'next';
 
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: 'User Management - Admin',
   description: 'Manage user roles and permissions',

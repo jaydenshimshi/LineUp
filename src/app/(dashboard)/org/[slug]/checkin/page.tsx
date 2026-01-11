@@ -8,6 +8,8 @@ import { createClient } from '@/lib/supabase/server';
 import { CheckinClient } from './checkin-client';
 import type { Metadata } from 'next';
 
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: 'Check-in - Lineup',
   description: 'Mark your availability for upcoming games',

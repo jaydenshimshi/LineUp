@@ -8,6 +8,8 @@ import { createClient } from '@/lib/supabase/server';
 import { PlayersClient } from './players-client';
 import type { Metadata } from 'next';
 
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: 'Players - Admin',
   description: 'Manage players and ratings',

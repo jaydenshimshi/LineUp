@@ -13,6 +13,8 @@ import { AnnouncementsClient } from './announcements-client';
 import type { Metadata } from 'next';
 import type { Announcement } from '@/types';
 
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: 'Manage Announcements',
   description: 'Create and manage announcements for players',

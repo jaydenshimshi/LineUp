@@ -19,6 +19,8 @@ import { Badge } from '@/components/ui/badge';
 import { OrgTodayClient } from './org-today-client';
 import type { Metadata } from 'next';
 
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: 'Today - Lineup',
   description: 'Check in for today\'s game',

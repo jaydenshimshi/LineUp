@@ -7,6 +7,8 @@ import { createClient } from '@/lib/supabase/server';
 import { OrganizationsClient } from './organizations-client';
 import type { Metadata } from 'next';
 
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: 'My Groups - Lineup',
   description: 'Manage your sports groups',

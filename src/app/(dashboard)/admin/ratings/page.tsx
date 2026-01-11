@@ -15,6 +15,8 @@ import { RatingsClient } from './ratings-client';
 import type { Metadata } from 'next';
 import type { PositionType } from '@/types';
 
+export const dynamic = 'force-dynamic';
+
 interface PlayerWithRating {
   id: string;
   full_name: string;

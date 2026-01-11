@@ -8,6 +8,8 @@ import { createClient } from '@/lib/supabase/server';
 import { ProfileClient } from './profile-client';
 import type { Metadata } from 'next';
 
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: 'Profile - Lineup',
   description: 'Complete your player profile',

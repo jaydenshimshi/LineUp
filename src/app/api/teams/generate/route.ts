@@ -53,7 +53,8 @@ interface PythonSolverResponse {
 }
 
 /**
- * Call the Python OR-Tools solver API
+ * Call the Python OR-Tools solver API with timeout
+ * Falls back to TypeScript solver if Python service is slow/down
  */
 async function callPythonSolver(playersData: PlayerData[]): Promise<PythonSolverResponse | null> {
   const solverUrl = process.env.SOLVER_API_URL;
@@ -61,6 +62,10 @@ async function callPythonSolver(playersData: PlayerData[]): Promise<PythonSolver
   if (!solverUrl) {
     return null;
   }
+
+  // Timeout after 15 seconds (allows for cold start but falls back if truly down)
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
 
   try {
     const response = await fetch(`${solverUrl}/api/solve`, {
@@ -74,7 +79,10 @@ async function callPythonSolver(playersData: PlayerData[]): Promise<PythonSolver
           timeout_seconds: 10.0,
         },
       }),
+      signal: controller.signal,
     });
+
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       console.error(`Python solver returned ${response.status}`);
@@ -84,7 +92,12 @@ async function callPythonSolver(playersData: PlayerData[]): Promise<PythonSolver
     const result = await response.json() as PythonSolverResponse;
     return result;
   } catch (error) {
-    console.error('Failed to call Python solver:', error);
+    clearTimeout(timeoutId);
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.error('Python solver timed out after 15s, falling back to TypeScript');
+    } else {
+      console.error('Failed to call Python solver:', error);
+    }
     return null;
   }
 }

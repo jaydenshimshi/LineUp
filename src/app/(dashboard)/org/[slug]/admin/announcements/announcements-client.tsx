@@ -69,6 +69,8 @@ export function AnnouncementsClient({
   const [scopeType, setScopeType] = useState<'global' | 'date'>('global');
   const [scopeDate, setScopeDate] = useState('');
   const [urgency, setUrgency] = useState<'info' | 'important'>('info');
+  const [visibleFrom, setVisibleFrom] = useState('');
+  const [visibleUntil, setVisibleUntil] = useState('');
 
   const resetForm = () => {
     setTitle('');
@@ -76,6 +78,8 @@ export function AnnouncementsClient({
     setScopeType('global');
     setScopeDate('');
     setUrgency('info');
+    setVisibleFrom('');
+    setVisibleUntil('');
     setEditingId(null);
     setError(null);
   };
@@ -87,6 +91,8 @@ export function AnnouncementsClient({
     setScopeType(announcement.scope_type);
     setScopeDate(announcement.scope_date || '');
     setUrgency(announcement.urgency);
+    setVisibleFrom(announcement.visible_from ? announcement.visible_from.slice(0, 16) : '');
+    setVisibleUntil(announcement.visible_until ? announcement.visible_until.slice(0, 16) : '');
     setIsDialogOpen(true);
   };
 
@@ -112,6 +118,8 @@ export function AnnouncementsClient({
         scope_type: scopeType,
         scope_date: scopeType === 'date' ? scopeDate : null,
         urgency,
+        visible_from: visibleFrom ? new Date(visibleFrom).toISOString() : null,
+        visible_until: visibleUntil ? new Date(visibleUntil).toISOString() : null,
       };
 
       if (editingId) {
@@ -286,6 +294,27 @@ export function AnnouncementsClient({
                     />
                   </div>
                 )}
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="visibleFrom">Visible From (optional)</Label>
+                    <Input
+                      id="visibleFrom"
+                      type="datetime-local"
+                      value={visibleFrom}
+                      onChange={(e) => setVisibleFrom(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="visibleUntil">Visible Until (optional)</Label>
+                    <Input
+                      id="visibleUntil"
+                      type="datetime-local"
+                      value={visibleUntil}
+                      onChange={(e) => setVisibleUntil(e.target.value)}
+                    />
+                  </div>
+                </div>
               </div>
 
               <DialogFooter>

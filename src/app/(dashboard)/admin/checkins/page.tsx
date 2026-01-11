@@ -7,6 +7,8 @@ import { createClient } from '@/lib/supabase/server';
 import { CheckinsClient } from './checkins-client';
 import type { Metadata } from 'next';
 
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: 'Check-ins - Admin',
   description: 'Manage player check-ins',

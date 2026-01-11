@@ -8,6 +8,8 @@ import { createClient } from '@/lib/supabase/server';
 import { SettingsClient } from './settings-client';
 import type { Metadata } from 'next';
 
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: 'Settings - Admin',
   description: 'Organization settings',

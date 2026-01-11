@@ -8,6 +8,8 @@ import { createClient } from '@/lib/supabase/server';
 import { MembersClient } from './members-client';
 import type { Metadata } from 'next';
 
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: 'Members - Admin',
   description: 'Manage organization members',

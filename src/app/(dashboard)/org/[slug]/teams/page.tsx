@@ -16,6 +16,8 @@ import {
 import { Badge } from '@/components/ui/badge';
 import type { Metadata } from 'next';
 
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: 'Teams - Lineup',
   description: 'View team assignments',
@@ -29,6 +31,7 @@ interface TeamAssignment {
   id: string;
   team_color: 'red' | 'blue' | 'yellow' | 'sub';
   assigned_role: string | null;
+  bench_team: 'red' | 'blue' | 'yellow' | null;
   players: {
     id: string;
     full_name: string;
@@ -114,6 +117,7 @@ export default async function TeamsPage({ params }: PageProps) {
         id,
         team_color,
         assigned_role,
+        bench_team,
         players (
           id,
           full_name,
@@ -235,16 +239,35 @@ export default async function TeamsPage({ params }: PageProps) {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="flex flex-wrap gap-2">
-                    {teams.sub.map((assignment) => (
-                      <Badge
-                        key={assignment.id}
-                        variant="secondary"
-                        className="py-1.5 px-3"
-                      >
-                        {assignment.players.full_name}
-                      </Badge>
-                    ))}
+                  <div className="space-y-2">
+                    {teams.sub.map((assignment) => {
+                      const benchColor = assignment.bench_team;
+                      const colors = benchColor ? teamColors[benchColor] : null;
+                      return (
+                        <div
+                          key={assignment.id}
+                          className="flex items-center justify-between py-2 border-b border-border/50 last:border-0"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-sm font-medium">
+                              {assignment.players.full_name
+                                .split(' ')
+                                .map((n) => n[0])
+                                .join('')
+                                .slice(0, 2)}
+                            </div>
+                            <span className="font-medium">
+                              {assignment.players.full_name}
+                            </span>
+                          </div>
+                          {benchColor && colors && (
+                            <Badge className={colors.badge}>
+                              Bench: {benchColor.charAt(0).toUpperCase() + benchColor.slice(1)}
+                            </Badge>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </CardContent>
               </Card>

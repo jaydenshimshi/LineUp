@@ -9,6 +9,8 @@ import { createClient } from '@/lib/supabase/server';
 import { TeamsClient } from './teams-client';
 import type { Metadata } from 'next';
 
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: 'Generate Teams - Admin',
   description: 'Generate balanced teams',
