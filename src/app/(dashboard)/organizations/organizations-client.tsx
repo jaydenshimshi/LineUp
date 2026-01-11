@@ -209,8 +209,10 @@ export function OrganizationsClient({ memberships }: OrganizationsClientProps) {
               </h2>
             </div>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {memberships.map(({ organizations: org, role, joined_at }) => (
-                <Link key={org.id} href={`/org/${org.slug}`}>
+              {memberships
+                .filter(({ organizations: org }) => org !== null)
+                .map(({ organizations: org, role, joined_at }) => (
+                <Link key={org!.id} href={`/org/${org!.slug}`}>
                   <Card className="h-full hover:shadow-xl hover:shadow-primary/10 hover:border-primary/50 hover:-translate-y-1 transition-all duration-300 cursor-pointer group overflow-hidden">
                     {/* Colored top border */}
                     <div className="h-1 bg-gradient-to-r from-primary to-primary/50" />
@@ -218,14 +220,14 @@ export function OrganizationsClient({ memberships }: OrganizationsClientProps) {
                       <div className="flex items-start justify-between">
                         <div className="flex items-center gap-3">
                           <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center text-2xl group-hover:scale-110 transition-transform shadow-sm">
-                            {sportIcons[org.sport] || sportIcons.default}
+                            {sportIcons[org!.sport] || sportIcons.default}
                           </div>
                           <div>
                             <CardTitle className="text-lg group-hover:text-primary transition-colors">
-                              {org.name}
+                              {org!.name}
                             </CardTitle>
                             <CardDescription className="text-sm font-mono">
-                              /{org.slug}
+                              /{org!.slug}
                             </CardDescription>
                           </div>
                         </div>
@@ -235,9 +237,9 @@ export function OrganizationsClient({ memberships }: OrganizationsClientProps) {
                       </div>
                     </CardHeader>
                     <CardContent>
-                      {org.description && (
+                      {org!.description && (
                         <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
-                          {org.description}
+                          {org!.description}
                         </p>
                       )}
                       <div className="flex items-center justify-between text-xs text-muted-foreground">

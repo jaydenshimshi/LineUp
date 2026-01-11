@@ -52,17 +52,45 @@ export default async function AdminAnnouncementsPage({ params }: PageProps) {
   }
 
   // Get announcements
-  const { data: announcements } = await supabase
+  const { data: announcementsData } = await supabase
     .from('announcements')
     .select('*')
     .eq('organization_id', orgData.id)
     .order('created_at', { ascending: false });
 
+  // Transform body to message for client compatibility
+  interface DbAnnouncement {
+    id: string;
+    title: string;
+    body: string;
+    scope_type: 'global' | 'date_specific';
+    scope_date: string | null;
+    urgency: 'info' | 'important';
+    visible_from: string;
+    visible_until: string | null;
+    created_at: string;
+  }
+
+  const announcements = (announcementsData || []).map((a) => {
+    const dbRow = a as DbAnnouncement;
+    return {
+      id: dbRow.id,
+      title: dbRow.title,
+      message: dbRow.body,
+      scope_type: dbRow.scope_type === 'date_specific' ? 'date' as const : 'global' as const,
+      scope_date: dbRow.scope_date,
+      urgency: dbRow.urgency,
+      visible_from: dbRow.visible_from,
+      visible_until: dbRow.visible_until,
+      created_at: dbRow.created_at,
+    };
+  });
+
   return (
     <AnnouncementsClient
       organizationId={orgData.id}
       orgSlug={orgData.slug}
-      announcements={announcements || []}
+      announcements={announcements}
     />
   );
 }

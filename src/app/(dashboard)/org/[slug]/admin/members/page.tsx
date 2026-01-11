@@ -4,7 +4,7 @@
  */
 
 import { redirect } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { MembersClient } from './members-client';
 import type { Metadata } from 'next';
 
@@ -31,8 +31,11 @@ export default async function MembersPage({ params }: PageProps) {
     redirect('/login');
   }
 
+  // Use admin client to bypass RLS
+  const adminSupabase = createAdminClient();
+
   // Get organization
-  const { data: org } = await supabase
+  const { data: org } = await adminSupabase
     .from('organizations')
     .select('id, name, slug, join_code')
     .eq('slug', slug)
@@ -45,7 +48,7 @@ export default async function MembersPage({ params }: PageProps) {
   const orgData = org as { id: string; name: string; slug: string; join_code: string | null };
 
   // Check admin access
-  const { data: currentMembership } = await supabase
+  const { data: currentMembership } = await adminSupabase
     .from('memberships')
     .select('role')
     .eq('user_id', user.id)
@@ -58,17 +61,13 @@ export default async function MembersPage({ params }: PageProps) {
   }
 
   // Get all members with their details
-  const { data: memberships } = await supabase
+  const { data: memberships } = await adminSupabase
     .from('memberships')
     .select(`
       id,
       role,
       joined_at,
       user_id,
-      users (
-        id,
-        email
-      ),
       players (
         id,
         full_name,
@@ -78,6 +77,18 @@ export default async function MembersPage({ params }: PageProps) {
     .eq('organization_id', orgData.id)
     .order('joined_at', { ascending: true });
 
+  // Get users data separately to handle missing records
+  const memberUserIds = (memberships || []).map((m: { user_id: string }) => m.user_id);
+  const { data: usersData } = await adminSupabase
+    .from('users')
+    .select('id, email')
+    .in('id', memberUserIds.length > 0 ? memberUserIds : ['none']);
+
+  const usersMap = new Map<string, { id: string; email: string }>();
+  (usersData || []).forEach((u: { id: string; email: string }) => {
+    usersMap.set(u.id, u);
+  });
+
   interface MembershipData {
     id: string;
     role: 'member' | 'admin' | 'owner';
@@ -86,7 +97,7 @@ export default async function MembersPage({ params }: PageProps) {
     users: {
       id: string;
       email: string;
-    };
+    } | null;
     players: {
       id: string;
       full_name: string;
@@ -94,7 +105,11 @@ export default async function MembersPage({ params }: PageProps) {
     } | null;
   }
 
-  const members = (memberships || []) as MembershipData[];
+  // Combine memberships with users data
+  const members = (memberships || []).map((m: { id: string; role: string; joined_at: string; user_id: string; players: { id: string; full_name: string; profile_completed: boolean } | null }) => ({
+    ...m,
+    users: usersMap.get(m.user_id) || { id: m.user_id, email: 'Unknown email' },
+  })) as MembershipData[];
 
   return (
     <MembersClient

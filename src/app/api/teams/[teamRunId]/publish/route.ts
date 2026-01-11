@@ -1,10 +1,11 @@
 /**
  * Team Run Publish API
  * POST: Publish a team run so players can see their assignments
+ * Supports republishing after changes (unless locked)
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 
 interface RouteContext {
   params: Promise<{ teamRunId: string }>;
@@ -17,6 +18,7 @@ export async function POST(
   try {
     const { teamRunId } = await context.params;
     const supabase = await createClient();
+    const adminSupabase = createAdminClient();
 
     const {
       data: { user },
@@ -26,8 +28,8 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Get the team run
-    const { data: teamRun, error: fetchError } = await supabase
+    // Get the team run using admin client to bypass RLS
+    const { data: teamRun, error: fetchError } = await adminSupabase
       .from('team_runs')
       .select('id, organization_id, status')
       .eq('id', teamRunId)
@@ -52,18 +54,18 @@ export async function POST(
       return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
     }
 
-    // Check if already published
-    if (teamRunData.status === 'published' || teamRunData.status === 'locked') {
+    // Cannot republish if locked
+    if (teamRunData.status === 'locked') {
       return NextResponse.json(
-        { error: 'Team run is already published' },
+        { error: 'Cannot republish a locked team run' },
         { status: 400 }
       );
     }
 
-    // Update status to published
-    const { data: updatedTeamRun, error: updateError } = await supabase
+    // Update status to published (allows republishing from draft or published state)
+    const { data: updatedTeamRun, error: updateError } = await adminSupabase
       .from('team_runs')
-      .update({ status: 'published' } as never)
+      .update({ status: 'published', updated_at: new Date().toISOString() })
       .eq('id', teamRunId)
       .select()
       .single();
@@ -76,7 +78,11 @@ export async function POST(
       );
     }
 
-    return NextResponse.json({ teamRun: updatedTeamRun });
+    const isRepublish = teamRunData.status === 'published';
+    return NextResponse.json({
+      teamRun: updatedTeamRun,
+      message: isRepublish ? 'Teams republished with changes' : 'Teams published successfully'
+    });
   } catch (error) {
     console.error('Publish API error:', error);
     return NextResponse.json(

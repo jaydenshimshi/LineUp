@@ -30,11 +30,11 @@ import {
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 const sports = [
-  { value: 'soccer', label: 'Soccer', icon: '\u26BD' },
-  { value: 'basketball', label: 'Basketball', icon: '\uD83C\uDFC0' },
-  { value: 'volleyball', label: 'Volleyball', icon: '\uD83C\uDFD0' },
-  { value: 'tennis', label: 'Tennis', icon: '\uD83C\uDFBE' },
-  { value: 'other', label: 'Other', icon: '\uD83C\uDFC6' },
+  { value: 'soccer', label: 'Soccer', icon: '⚽' },
+  { value: 'basketball', label: 'Basketball', icon: '🏀' },
+  { value: 'volleyball', label: 'Volleyball', icon: '🏐' },
+  { value: 'tennis', label: 'Tennis', icon: '🎾' },
+  { value: 'other', label: 'Other', icon: '🏆' },
 ];
 
 function generateSlug(name: string): string {

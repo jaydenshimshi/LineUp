@@ -4,7 +4,7 @@
  */
 
 import { redirect } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { PlayersClient } from './players-client';
 import type { Metadata } from 'next';
 
@@ -22,6 +22,7 @@ interface PageProps {
 export default async function PlayersPage({ params }: PageProps) {
   const { slug } = await params;
   const supabase = await createClient();
+  const adminSupabase = createAdminClient();
 
   const {
     data: { user },
@@ -31,8 +32,8 @@ export default async function PlayersPage({ params }: PageProps) {
     redirect('/login');
   }
 
-  // Get organization
-  const { data: org } = await supabase
+  // Get organization using admin client to bypass RLS
+  const { data: org } = await adminSupabase
     .from('organizations')
     .select('id, name, slug')
     .eq('slug', slug)
@@ -44,8 +45,8 @@ export default async function PlayersPage({ params }: PageProps) {
 
   const orgData = org as { id: string; name: string; slug: string };
 
-  // Check admin access
-  const { data: membership } = await supabase
+  // Check admin access using admin client
+  const { data: membership } = await adminSupabase
     .from('memberships')
     .select('role')
     .eq('user_id', user.id)
@@ -57,8 +58,8 @@ export default async function PlayersPage({ params }: PageProps) {
     redirect(`/org/${slug}`);
   }
 
-  // Get all players for this org with their ratings
-  const { data: playersData } = await supabase
+  // Get all players for this org with their ratings (including admin-created players without user_id)
+  const { data: playersData } = await adminSupabase
     .from('players')
     .select(`
       id,
@@ -74,11 +75,20 @@ export default async function PlayersPage({ params }: PageProps) {
     .eq('profile_completed', true)
     .order('full_name');
 
-  // Get ratings separately
-  const { data: ratingsData } = await supabase
+  // Get all ratings for the organization (shared across all admins for team generation consistency)
+  const { data: ratingsData } = await adminSupabase
     .from('player_admin_ratings')
     .select('player_id, rating_stars')
     .eq('organization_id', orgData.id);
+
+  // Get today's check-ins
+  const today = new Date().toISOString().split('T')[0];
+  const { data: checkinsData } = await adminSupabase
+    .from('checkins')
+    .select('player_id')
+    .eq('organization_id', orgData.id)
+    .eq('date', today)
+    .eq('status', 'checked_in');
 
   interface Player {
     id: string;
@@ -88,7 +98,7 @@ export default async function PlayersPage({ params }: PageProps) {
     alt_position: string | null;
     profile_completed: boolean;
     created_at: string;
-    user_id: string;
+    user_id: string | null;
   }
 
   interface Rating {
@@ -98,6 +108,7 @@ export default async function PlayersPage({ params }: PageProps) {
 
   const players = (playersData || []) as Player[];
   const ratings = (ratingsData || []) as Rating[];
+  const todayCheckins = (checkinsData || []).map((c: { player_id: string }) => c.player_id);
 
   // Create ratings map
   const ratingsMap: Record<string, number> = {};
@@ -116,6 +127,8 @@ export default async function PlayersPage({ params }: PageProps) {
       orgId={orgData.id}
       orgSlug={slug}
       players={playersWithRatings}
+      todayCheckins={todayCheckins}
+      adminId={user.id}
     />
   );
 }

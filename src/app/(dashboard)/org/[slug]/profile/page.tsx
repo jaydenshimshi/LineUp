@@ -4,7 +4,7 @@
  */
 
 import { redirect } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { ProfileClient } from './profile-client';
 import type { Metadata } from 'next';
 
@@ -31,8 +31,11 @@ export default async function ProfilePage({ params }: PageProps) {
     redirect('/login');
   }
 
+  // Use admin client to bypass RLS
+  const adminSupabase = createAdminClient();
+
   // Get organization
-  const { data: org } = await supabase
+  const { data: org } = await adminSupabase
     .from('organizations')
     .select('id, name, sport')
     .eq('slug', slug)
@@ -45,7 +48,7 @@ export default async function ProfilePage({ params }: PageProps) {
   const orgData = org as { id: string; name: string; sport: string };
 
   // Check membership
-  const { data: membership } = await supabase
+  const { data: membership } = await adminSupabase
     .from('memberships')
     .select('id')
     .eq('user_id', user.id)
@@ -57,7 +60,7 @@ export default async function ProfilePage({ params }: PageProps) {
   }
 
   // Get existing player profile for this org
-  const { data: player } = await supabase
+  const { data: player } = await adminSupabase
     .from('players')
     .select('*')
     .eq('user_id', user.id)

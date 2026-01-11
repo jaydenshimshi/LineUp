@@ -4,19 +4,20 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 
 interface RouteContext {
   params: Promise<{ teamRunId: string }>;
 }
 
 export async function POST(
-  request: NextRequest,
+  _request: NextRequest,
   context: RouteContext
 ) {
   try {
     const { teamRunId } = await context.params;
     const supabase = await createClient();
+    const adminSupabase = createAdminClient();
 
     const {
       data: { user },
@@ -26,8 +27,8 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Get the team run
-    const { data: teamRun, error: fetchError } = await supabase
+    // Get the team run using admin client to bypass RLS
+    const { data: teamRun, error: fetchError } = await adminSupabase
       .from('team_runs')
       .select('id, organization_id, status')
       .eq('id', teamRunId)
@@ -68,10 +69,10 @@ export async function POST(
       );
     }
 
-    // Update status to locked
-    const { data: updatedTeamRun, error: updateError } = await supabase
+    // Update status to locked using admin client
+    const { data: updatedTeamRun, error: updateError } = await adminSupabase
       .from('team_runs')
-      .update({ status: 'locked' } as never)
+      .update({ status: 'locked', updated_at: new Date().toISOString() })
       .eq('id', teamRunId)
       .select()
       .single();

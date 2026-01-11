@@ -1,14 +1,3 @@
-"""
-Lineup Team Solver API
-
-Production-ready Flask API for the OR-Tools team generation solver.
-Deploy on Railway, Render, or any Python hosting.
-
-Endpoints:
-    POST /api/solve - Generate balanced teams
-    GET /api/health - Health check
-"""
-
 import os
 import logging
 from flask import Flask, request, jsonify

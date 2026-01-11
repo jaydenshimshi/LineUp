@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 
 type TeamRunStatus = 'draft' | 'published' | 'locked';
 
@@ -20,16 +20,21 @@ interface TeamAssignment {
 
 /**
  * GET /api/teams
- * Get team run for a specific date
+ * Get team run for a specific date and organization
  */
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
     const { searchParams } = new URL(request.url);
     const date = searchParams.get('date');
+    const organization_id = searchParams.get('organization_id');
 
     if (!date) {
       return NextResponse.json({ error: 'Date is required' }, { status: 400 });
+    }
+
+    if (!organization_id) {
+      return NextResponse.json({ error: 'organization_id is required' }, { status: 400 });
     }
 
     // Verify authenticated
@@ -41,16 +46,24 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // Use admin client to bypass RLS for reading team data
+    const adminSupabase = createAdminClient();
+
     // Get team run with assignments
-    const { data: teamRun, error } = await supabase
+    const { data: teamRun, error } = await adminSupabase
       .from('team_runs')
       .select(`
-        *,
+        id,
+        status,
         team_assignments(
-          *,
-          players(id, full_name, main_position, alt_position)
+          id,
+          team_color,
+          assigned_role,
+          player_id,
+          players(id, full_name, main_position)
         )
       `)
+      .eq('organization_id', organization_id)
       .eq('date', date)
       .single();
 

@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 
 export async function GET(request: NextRequest) {
   try {
@@ -67,7 +67,13 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ announcements });
+    // Transform body to message for client compatibility
+    const transformedAnnouncements = (announcements || []).map((a: Record<string, unknown>) => ({
+      ...a,
+      message: a.body,
+    }));
+
+    return NextResponse.json({ announcements: transformedAnnouncements });
   } catch (error) {
     console.error('Announcements API error:', error);
     return NextResponse.json(
@@ -88,17 +94,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const body = await request.json();
+    const requestBody = await request.json();
     const {
       organization_id,
       title,
-      message,
+      message, // Client sends 'message', we'll store as 'body'
       scope_type = 'global',
       scope_date,
       urgency = 'info',
       visible_from,
       visible_until,
-    } = body;
+    } = requestBody;
 
     if (!organization_id || !title || !message) {
       return NextResponse.json(
@@ -121,6 +127,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate scope_type and scope_date
+    // Client uses 'date', DB uses 'date_specific'
+    const dbScopeType = scope_type === 'date' ? 'date_specific' : 'global';
+
     if (scope_type === 'date' && !scope_date) {
       return NextResponse.json(
         { error: 'scope_date required for date-specific announcements' },
@@ -128,31 +137,40 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { data: announcement, error } = await supabase
+    // Use admin client to bypass RLS (we've already verified admin status above)
+    const adminSupabase = createAdminClient();
+
+    const { data: announcement, error } = await adminSupabase
       .from('announcements')
       .insert({
         organization_id,
         title,
-        message,
-        scope_type,
+        body: message, // DB uses 'body', client uses 'message'
+        scope_type: dbScopeType,
         scope_date: scope_type === 'date' ? scope_date : null,
         urgency,
         visible_from: visible_from || new Date().toISOString(),
         visible_until: visible_until || null,
         created_by: user.id,
-      } as never)
+      })
       .select()
       .single();
 
     if (error) {
       console.error('Error creating announcement:', error);
       return NextResponse.json(
-        { error: 'Failed to create announcement' },
+        { error: `Failed to create announcement: ${error.message}` },
         { status: 500 }
       );
     }
 
-    return NextResponse.json({ announcement }, { status: 201 });
+    // Transform body to message for client compatibility
+    const transformedAnnouncement = {
+      ...announcement,
+      message: announcement.body,
+    };
+
+    return NextResponse.json({ announcement: transformedAnnouncement }, { status: 201 });
   } catch (error) {
     console.error('Announcements API error:', error);
     return NextResponse.json(

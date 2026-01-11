@@ -360,6 +360,10 @@ def solve_teams(
     sub_count = model.NewIntVar(0, n, "sub_count")
     model.Add(sub_count == sum(sub[i] for i in P))
 
+    # CRITICAL: No subs when < 14 players - all players should be on teams
+    if n < 14:
+        model.Add(sub_count == 0)
+
     # ==========================================================================
     # Objective Function
     # ==========================================================================

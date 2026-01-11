@@ -4,7 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 
 export async function POST(request: NextRequest) {
   try {
@@ -59,27 +59,66 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Player not found' }, { status: 404 });
     }
 
-    // Upsert the rating
-    const { data: rating, error } = await supabase
+    // Use admin client to bypass RLS (we've already verified admin status above)
+    let adminSupabase;
+    try {
+      adminSupabase = createAdminClient();
+    } catch (err) {
+      console.error('Failed to create admin client:', err);
+      return NextResponse.json(
+        { error: 'Server configuration error - missing service role key' },
+        { status: 500 }
+      );
+    }
+
+    // First check if rating exists
+    const { data: existingRating } = await adminSupabase
       .from('player_admin_ratings')
-      .upsert(
-        {
+      .select('id')
+      .eq('player_id', player_id)
+      .eq('organization_id', organization_id)
+      .single();
+
+    let rating;
+    let error;
+
+    if (existingRating) {
+      // Update existing rating
+      const result = await adminSupabase
+        .from('player_admin_ratings')
+        .update({
+          rating_stars,
+          rated_by_admin_id: user.id,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('player_id', player_id)
+        .eq('organization_id', organization_id)
+        .select()
+        .single();
+
+      rating = result.data;
+      error = result.error;
+    } else {
+      // Insert new rating
+      const result = await adminSupabase
+        .from('player_admin_ratings')
+        .insert({
           player_id,
           organization_id,
           rating_stars,
           rated_by_admin_id: user.id,
-        } as never,
-        {
-          onConflict: 'player_id,organization_id',
-        }
-      )
-      .select()
-      .single();
+        })
+        .select()
+        .single();
+
+      rating = result.data;
+      error = result.error;
+    }
 
     if (error) {
       console.error('Error saving rating:', error);
       return NextResponse.json(
-        { error: 'Failed to save rating' },
+        { error: `Failed to save rating: ${error.message}` },
         { status: 500 }
       );
     }

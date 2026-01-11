@@ -2,16 +2,47 @@
 
 /**
  * Check-in Client Component
- * Beautiful calendar UI for marking availability
+ * Beautiful calendar UI for marking availability with real-time updates
  */
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { format, addDays, startOfWeek, isSameDay, isToday, isPast } from 'date-fns';
-import { Button } from '@/components/ui/button';
+import { format, addDays, isSameDay, isToday, isPast } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+} from '@/components/ui/drawer';
 import { cn } from '@/lib/utils';
+import { useRealtimeCheckinCounts } from '@/hooks/use-realtime-checkin-counts';
+import { toast } from 'sonner';
+
+interface CheckedInPlayer {
+  id: string;
+  name: string;
+  position: string;
+  isAdmin: boolean;
+  role: string;
+  checkinOrder: number;
+  contact: {
+    email: string | null;
+    phone: string | null;
+  } | null;
+}
+
+interface Announcement {
+  id: string;
+  title: string;
+  message: string;
+  urgency: 'info' | 'important';
+  scope_type: 'global' | 'date';
+  scope_date: string | null;
+}
 
 interface CheckinClientProps {
   orgId: string;
@@ -20,33 +51,80 @@ interface CheckinClientProps {
   playerName: string;
   initialCheckins: Record<string, 'checked_in' | 'checked_out'>;
   checkinCounts: Record<string, number>;
+  announcements?: Announcement[];
 }
 
 export function CheckinClient({
   orgId,
-  orgSlug,
   playerId,
-  playerName,
   initialCheckins,
-  checkinCounts,
+  checkinCounts: initialCounts,
+  announcements = [],
 }: CheckinClientProps) {
   const router = useRouter();
-  const [isPending, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
   const [checkins, setCheckins] = useState(initialCheckins);
   const [loadingDate, setLoadingDate] = useState<string | null>(null);
 
+  // Player list drawer state
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [checkedInPlayers, setCheckedInPlayers] = useState<CheckedInPlayer[]>([]);
+  const [loadingPlayers, setLoadingPlayers] = useState(false);
+
   const today = new Date();
-  const weekStart = startOfWeek(today, { weekStartsOn: 0 });
 
   // Generate 14 days starting from today
-  const days: Date[] = [];
-  for (let i = 0; i < 14; i++) {
-    days.push(addDays(today, i));
-  }
+  const days = useMemo(() => {
+    const result: Date[] = [];
+    for (let i = 0; i < 14; i++) {
+      result.push(addDays(today, i));
+    }
+    return result;
+  }, []);
+
+  // Date strings for real-time hook
+  const dateStrings = useMemo(
+    () => days.map((d) => format(d, 'yyyy-MM-dd')),
+    [days]
+  );
+
+  // Real-time check-in counts
+  const { counts: checkinCounts, refetch: refetchCounts } = useRealtimeCheckinCounts({
+    organizationId: orgId,
+    dates: dateStrings,
+    initialCounts: initialCounts,
+  });
 
   // Split into weeks
   const thisWeek = days.slice(0, 7);
   const nextWeek = days.slice(7, 14);
+
+  // Fetch checked-in players for a specific date
+  const fetchCheckedInPlayers = async (date: Date) => {
+    const dateString = format(date, 'yyyy-MM-dd');
+    setLoadingPlayers(true);
+    setSelectedDate(date);
+    setDrawerOpen(true);
+
+    try {
+      const response = await fetch(
+        `/api/checkins/players?date=${dateString}&organizationId=${orgId}`
+      );
+      if (response.ok) {
+        const data = await response.json();
+        setCheckedInPlayers(data.players || []);
+      } else {
+        toast.error('Failed to load players');
+        setCheckedInPlayers([]);
+      }
+    } catch {
+      toast.error('Something went wrong');
+      setCheckedInPlayers([]);
+    } finally {
+      setLoadingPlayers(false);
+    }
+  };
 
   const handleToggleCheckin = async (date: Date) => {
     const dateString = format(date, 'yyyy-MM-dd');
@@ -72,12 +150,30 @@ export function CheckinClient({
           ...prev,
           [dateString]: newStatus,
         }));
+
+        // Immediately refetch counts to update the badge
+        refetchCounts();
+
+        // Show toast notification
+        if (newStatus === 'checked_in') {
+          toast.success(`You're in for ${format(date, 'EEEE, MMM d')}!`, {
+            description: 'Other players can see you\'re coming',
+          });
+        } else {
+          toast.info(`Checked out of ${format(date, 'EEEE, MMM d')}`, {
+            description: 'You can always check back in',
+          });
+        }
+
         startTransition(() => {
           router.refresh();
         });
+      } else {
+        toast.error('Failed to update check-in');
       }
     } catch (error) {
       console.error('Failed to update check-in:', error);
+      toast.error('Something went wrong');
     } finally {
       setLoadingDate(null);
     }
@@ -91,119 +187,178 @@ export function CheckinClient({
     const isPastDay = isPast(date) && !isToday(date);
     const isTodayDate = isToday(date);
 
+    const handleClick = (e: React.MouseEvent) => {
+      e.preventDefault();
+      if (!isPastDay) {
+        handleToggleCheckin(date);
+      }
+    };
+
+    const handleViewPlayers = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      fetchCheckedInPlayers(date);
+    };
+
     return (
-      <button
-        onClick={() => !isPastDay && handleToggleCheckin(date)}
-        disabled={isPastDay || loadingDate === dateString}
+      <div
         className={cn(
-          'relative flex flex-col items-center p-3 sm:p-4 rounded-xl border-2 transition-all duration-200',
-          'hover:scale-105 active:scale-95',
-          isPastDay && 'opacity-50 cursor-not-allowed hover:scale-100',
+          'relative flex flex-col items-center p-1.5 rounded-lg border transition-all',
+          isPastDay && 'opacity-50',
           isCheckedIn
-            ? 'border-primary bg-primary/10 shadow-sm'
-            : 'border-border bg-card hover:border-primary/50',
-          isTodayDate && !isCheckedIn && 'border-primary/50 ring-2 ring-primary/20',
+            ? 'border-primary bg-primary/10'
+            : 'border-border bg-card',
+          isTodayDate && !isCheckedIn && 'border-primary/50 ring-1 ring-primary/20',
           loadingDate === dateString && 'animate-pulse'
         )}
       >
-        {/* Day name */}
-        <span className="text-xs font-medium text-muted-foreground uppercase">
-          {format(date, 'EEE')}
-        </span>
-
-        {/* Date number */}
-        <span
+        {/* Clickable area for check-in toggle */}
+        <button
+          onClick={handleClick}
+          disabled={isPastDay || loadingDate === dateString}
           className={cn(
-            'text-xl sm:text-2xl font-bold mt-1',
-            isCheckedIn ? 'text-primary' : 'text-foreground',
-            isTodayDate && 'text-primary'
+            'flex flex-col items-center w-full',
+            !isPastDay && 'active:scale-95 transition-transform cursor-pointer',
+            isPastDay && 'cursor-not-allowed'
           )}
         >
-          {format(date, 'd')}
-        </span>
-
-        {/* Month (on first day or first of month) */}
-        {(date.getDate() === 1 || isSameDay(date, today)) && (
-          <span className="text-[10px] text-muted-foreground mt-0.5">
-            {format(date, 'MMM')}
+          {/* Day name */}
+          <span className="text-[9px] font-medium text-muted-foreground uppercase">
+            {format(date, 'EEE')}
           </span>
-        )}
 
-        {/* Status indicator */}
-        <div className="mt-2">
-          {isCheckedIn ? (
-            <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center">
-              <svg className="w-4 h-4 text-primary-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-            </div>
-          ) : (
-            <div className="w-6 h-6 rounded-full border-2 border-muted-foreground/30" />
-          )}
-        </div>
-
-        {/* Player count badge */}
-        {count > 0 && (
-          <Badge
-            variant="secondary"
+          {/* Date number */}
+          <span
             className={cn(
-              'absolute -top-2 -right-2 h-5 min-w-5 flex items-center justify-center text-[10px] px-1.5',
-              count >= 6 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : ''
+              'text-sm font-bold',
+              isCheckedIn ? 'text-primary' : 'text-foreground',
+              isTodayDate && 'text-primary'
             )}
           >
+            {format(date, 'd')}
+          </span>
+
+          {/* Status indicator */}
+          <div className="mt-0.5">
+            {isCheckedIn ? (
+              <div className="w-4 h-4 rounded-full bg-primary flex items-center justify-center">
+                <svg className="w-2.5 h-2.5 text-primary-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+            ) : (
+              <div className="w-4 h-4 rounded-full border border-muted-foreground/30" />
+            )}
+          </div>
+        </button>
+
+        {/* Player count badge - clickable to view players */}
+        {count > 0 && (
+          <button
+            onClick={handleViewPlayers}
+            className={cn(
+              'absolute -top-1 -right-1 h-4 min-w-4 flex items-center justify-center text-[9px] px-1 rounded-full font-medium transition-transform hover:scale-110',
+              count >= 6
+                ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                : 'bg-secondary text-secondary-foreground'
+            )}
+            title="Tap to see who's playing"
+          >
             {count}
-          </Badge>
+          </button>
         )}
 
         {/* Today indicator */}
         {isTodayDate && (
-          <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 text-[10px] font-medium text-primary">
+          <span className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 text-[8px] font-medium text-primary">
             Today
           </span>
         )}
-      </button>
+      </div>
     );
   };
 
   const checkedInDays = Object.values(checkins).filter((s) => s === 'checked_in').length;
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-muted/30 to-background">
-      <div className="container mx-auto py-6 px-4 max-w-2xl">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold">Weekly Check-in</h1>
-          <p className="text-muted-foreground mt-1">
-            Tap the days you&apos;re available to play
+    <div className="min-h-screen bg-background">
+      <div className="container mx-auto py-3 px-3 max-w-lg">
+        {/* Header - Compact */}
+        <div className="mb-3">
+          <h1 className="text-base font-semibold">Weekly Check-in</h1>
+          <p className="text-[11px] text-muted-foreground">
+            Tap days you&apos;re available
           </p>
         </div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-2 gap-4 mb-8">
+        {/* Announcements - Compact */}
+        {announcements.length > 0 && (
+          <div className="mb-3 space-y-2">
+            {announcements.map((announcement) => (
+              <div
+                key={announcement.id}
+                className={cn(
+                  'p-2 rounded-lg border',
+                  announcement.urgency === 'important'
+                    ? 'bg-amber-50/50 border-amber-200 dark:bg-amber-950/20 dark:border-amber-800'
+                    : 'bg-blue-50/50 border-blue-200 dark:bg-blue-950/20 dark:border-blue-800'
+                )}
+              >
+                <div className="flex items-start gap-2">
+                  <div
+                    className={cn(
+                      'w-5 h-5 rounded flex items-center justify-center text-[10px] font-bold flex-shrink-0',
+                      announcement.urgency === 'important'
+                        ? 'bg-amber-200 text-amber-800 dark:bg-amber-800 dark:text-amber-200'
+                        : 'bg-blue-200 text-blue-800 dark:bg-blue-800 dark:text-blue-200'
+                    )}
+                  >
+                    {announcement.urgency === 'important' ? '!' : 'i'}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1">
+                      <h3 className="font-medium text-[11px] truncate">{announcement.title}</h3>
+                      {announcement.scope_type === 'date' && announcement.scope_date && (
+                        <Badge variant="outline" className="text-[9px] h-4 px-1">
+                          {format(new Date(announcement.scope_date), 'MMM d')}
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-[10px] text-muted-foreground line-clamp-2">
+                      {announcement.message}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Stats - Compact */}
+        <div className="grid grid-cols-2 gap-2 mb-4">
           <Card className="bg-primary/5 border-primary/20">
-            <CardContent className="pt-4 pb-4 text-center">
-              <p className="text-3xl font-bold text-primary">{checkedInDays}</p>
-              <p className="text-sm text-muted-foreground">Days checked in</p>
+            <CardContent className="p-2 text-center">
+              <p className="text-xl font-bold text-primary">{checkedInDays}</p>
+              <p className="text-[10px] text-muted-foreground">Days in</p>
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="pt-4 pb-4 text-center">
-              <p className="text-3xl font-bold">{14 - checkedInDays}</p>
-              <p className="text-sm text-muted-foreground">Days available</p>
+            <CardContent className="p-2 text-center">
+              <p className="text-xl font-bold">{14 - checkedInDays}</p>
+              <p className="text-[10px] text-muted-foreground">Available</p>
             </CardContent>
           </Card>
         </div>
 
-        {/* This Week */}
-        <Card className="mb-6">
-          <CardHeader className="pb-4">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <span className="text-xl">📅</span>
+        {/* This Week - Compact */}
+        <Card className="mb-3">
+          <CardHeader className="p-2 pb-1">
+            <CardTitle className="text-xs font-medium flex items-center gap-1">
+              <span className="text-sm">📅</span>
               This Week
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-7 gap-2">
+          <CardContent className="p-2 pt-0">
+            <div className="grid grid-cols-7 gap-1">
               {thisWeek.map((date) => (
                 <DayCard key={date.toISOString()} date={date} />
               ))}
@@ -211,16 +366,16 @@ export function CheckinClient({
           </CardContent>
         </Card>
 
-        {/* Next Week */}
-        <Card className="mb-6">
-          <CardHeader className="pb-4">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <span className="text-xl">📆</span>
+        {/* Next Week - Compact */}
+        <Card className="mb-3">
+          <CardHeader className="p-2 pb-1">
+            <CardTitle className="text-xs font-medium flex items-center gap-1">
+              <span className="text-sm">📆</span>
               Next Week
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-7 gap-2">
+          <CardContent className="p-2 pt-0">
+            <div className="grid grid-cols-7 gap-1">
               {nextWeek.map((date) => (
                 <DayCard key={date.toISOString()} date={date} />
               ))}
@@ -228,32 +383,163 @@ export function CheckinClient({
           </CardContent>
         </Card>
 
-        {/* Legend */}
-        <div className="flex flex-wrap items-center justify-center gap-4 text-sm text-muted-foreground">
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded-full bg-primary" />
-            <span>Playing</span>
+        {/* Legend - Compact */}
+        <div className="flex items-center justify-center gap-3 text-[10px] text-muted-foreground">
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 rounded-full bg-primary" />
+            <span>In</span>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded-full border-2 border-muted-foreground/30" />
-            <span>Not playing</span>
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 rounded-full border border-muted-foreground/30" />
+            <span>Out</span>
           </div>
-          <div className="flex items-center gap-2">
-            <Badge variant="secondary" className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 text-[10px]">
+          <div className="flex items-center gap-1">
+            <Badge variant="secondary" className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 text-[9px] h-4 px-1">
               6+
             </Badge>
-            <span>Game on!</span>
+            <span>Game on</span>
           </div>
         </div>
 
-        {/* Tips */}
-        <div className="mt-8 p-4 bg-muted/50 rounded-xl">
-          <p className="text-sm text-center text-muted-foreground">
-            <span className="font-medium">Tip:</span> Games need at least 6 players.
-            Check in early so others know the game is happening!
+        {/* Tips - Compact */}
+        <div className="mt-3 p-2 bg-muted/30 rounded-lg">
+          <p className="text-[10px] text-center text-muted-foreground">
+            Tap badge to see who&apos;s playing
           </p>
         </div>
       </div>
+
+      {/* Player List Drawer - Compact */}
+      <Drawer open={drawerOpen} onOpenChange={setDrawerOpen}>
+        <DrawerContent>
+          <DrawerHeader className="text-left p-3 pb-2">
+            <DrawerTitle className="flex items-center gap-1.5 text-sm">
+              <span className="text-base">👥</span>
+              {selectedDate && format(selectedDate, 'EEE, MMM d')}
+            </DrawerTitle>
+            <DrawerDescription className="text-[11px]">
+              {loadingPlayers
+                ? 'Loading...'
+                : `${checkedInPlayers.length} player${checkedInPlayers.length !== 1 ? 's' : ''} in`}
+            </DrawerDescription>
+          </DrawerHeader>
+
+          <div className="px-3 pb-4 max-h-[50vh] overflow-y-auto">
+            {loadingPlayers ? (
+              <div className="space-y-2">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="animate-pulse flex items-center gap-2 p-2 rounded-lg bg-muted/50">
+                    <div className="w-8 h-8 rounded-full bg-muted" />
+                    <div className="flex-1 space-y-1">
+                      <div className="h-3 bg-muted rounded w-1/3" />
+                      <div className="h-2 bg-muted rounded w-1/4" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : checkedInPlayers.length === 0 ? (
+              <div className="text-center py-4 text-muted-foreground">
+                <p className="text-xs">No players yet</p>
+                <p className="text-[10px] mt-0.5">Be the first!</p>
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                {checkedInPlayers.map((player) => (
+                  <div
+                    key={player.id}
+                    className="flex items-center gap-2 p-2 rounded-lg bg-muted/30 border"
+                  >
+                    {/* Avatar with order number */}
+                    <div className="relative">
+                      <div className={cn(
+                        'w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-medium',
+                        player.checkinOrder <= 14
+                          ? 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300'
+                          : 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300'
+                      )}>
+                        {player.name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()}
+                      </div>
+                      <span className={cn(
+                        'absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full text-[8px] font-bold flex items-center justify-center',
+                        player.checkinOrder <= 14
+                          ? 'bg-green-500 text-white'
+                          : 'bg-blue-500 text-white'
+                      )}>
+                        {player.checkinOrder}
+                      </span>
+                    </div>
+
+                    {/* Player Info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1">
+                        <p className="text-xs font-medium truncate">{player.name}</p>
+                        {player.isAdmin && (
+                          <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 text-[8px] px-1 h-3.5">
+                            {player.role === 'owner' ? 'Owner' : 'Admin'}
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1 text-muted-foreground">
+                        <Badge variant="outline" className="text-[8px] px-1 py-0 h-3.5">
+                          {player.position}
+                        </Badge>
+                        {player.checkinOrder <= 14 ? (
+                          <span className="text-green-600 dark:text-green-400 text-[9px]">Playing</span>
+                        ) : (
+                          <span className="text-blue-600 dark:text-blue-400 text-[9px]">Sub</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Contact Info (if shared) */}
+                    {player.contact && (player.contact.email || player.contact.phone) && (
+                      <div className="flex gap-0.5">
+                        {player.contact.phone && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0"
+                            onClick={() => window.open(`tel:${player.contact?.phone}`, '_self')}
+                            title={player.contact.phone}
+                          >
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                            </svg>
+                          </Button>
+                        )}
+                        {player.contact.email && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0"
+                            onClick={() => window.open(`mailto:${player.contact?.email}`, '_self')}
+                            title={player.contact.email}
+                          >
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                            </svg>
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+                {/* Summary */}
+                <div className="mt-2 p-2 rounded-lg bg-muted/50 text-center text-[10px] text-muted-foreground">
+                  {checkedInPlayers.length >= 14 ? (
+                    <p>Full teams! First 14 play, rest are subs.</p>
+                  ) : checkedInPlayers.length >= 6 ? (
+                    <p>Game on! {14 - checkedInPlayers.length} spots left.</p>
+                  ) : (
+                    <p>Need {6 - checkedInPlayers.length} more for a game.</p>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </DrawerContent>
+      </Drawer>
     </div>
   );
 }

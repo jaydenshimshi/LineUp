@@ -5,7 +5,7 @@
 
 import { redirect } from 'next/navigation';
 import { format } from 'date-fns';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { TeamsClient } from './teams-client';
 import type { Metadata } from 'next';
 
@@ -33,8 +33,11 @@ export default async function AdminTeamsPage({ params }: PageProps) {
     redirect('/login');
   }
 
+  // Use admin client to bypass RLS
+  const adminSupabase = createAdminClient();
+
   // Get organization
-  const { data: org } = await supabase
+  const { data: org } = await adminSupabase
     .from('organizations')
     .select('id, name, slug')
     .eq('slug', slug)
@@ -47,7 +50,7 @@ export default async function AdminTeamsPage({ params }: PageProps) {
   const orgData = org as { id: string; name: string; slug: string };
 
   // Check admin access
-  const { data: membership } = await supabase
+  const { data: membership } = await adminSupabase
     .from('memberships')
     .select('role')
     .eq('user_id', user.id)
@@ -60,7 +63,7 @@ export default async function AdminTeamsPage({ params }: PageProps) {
   }
 
   // Get checked-in players for today with their ratings
-  const { data: checkinsData } = await supabase
+  const { data: checkinsData } = await adminSupabase
     .from('checkins')
     .select(`
       player_id,
@@ -91,7 +94,7 @@ export default async function AdminTeamsPage({ params }: PageProps) {
   const playerIds = checkins.map((c) => c.player_id);
 
   // Get ratings for checked-in players
-  const { data: ratingsData } = await supabase
+  const { data: ratingsData } = await adminSupabase
     .from('player_admin_ratings')
     .select('player_id, rating_stars')
     .eq('organization_id', orgData.id)
@@ -115,7 +118,7 @@ export default async function AdminTeamsPage({ params }: PageProps) {
   }));
 
   // Get existing team run for today
-  const { data: teamRunData } = await supabase
+  const { data: teamRunData } = await adminSupabase
     .from('team_runs')
     .select(`
       id,
@@ -128,7 +131,8 @@ export default async function AdminTeamsPage({ params }: PageProps) {
         players (
           id,
           full_name,
-          main_position
+          main_position,
+          alt_position
         )
       )
     `)
@@ -145,7 +149,9 @@ export default async function AdminTeamsPage({ params }: PageProps) {
       id: string;
       full_name: string;
       main_position: string;
+      alt_position: string | null;
     };
+    rating?: number;
   }
 
   interface TeamRun {
@@ -154,7 +160,14 @@ export default async function AdminTeamsPage({ params }: PageProps) {
     team_assignments: TeamAssignment[];
   }
 
+  // Add ratings to existing team assignments
   const existingTeamRun = teamRunData as TeamRun | null;
+  if (existingTeamRun?.team_assignments) {
+    existingTeamRun.team_assignments = existingTeamRun.team_assignments.map((assignment) => ({
+      ...assignment,
+      rating: ratingsMap[assignment.player_id] || 3,
+    }));
+  }
 
   return (
     <TeamsClient

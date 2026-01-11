@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 
 interface RouteParams {
   params: Promise<{ orgId: string }>;
@@ -81,6 +81,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   try {
     const { orgId } = await params;
     const supabase = await createClient();
+    const adminSupabase = createAdminClient();
 
     const {
       data: { user },
@@ -90,8 +91,8 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Check admin/owner
-    const { data: currentMembership } = await supabase
+    // Check admin/owner using admin client to bypass RLS
+    const { data: currentMembership } = await adminSupabase
       .from('memberships')
       .select('role')
       .eq('user_id', user.id)
@@ -126,7 +127,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     }
 
     // Get target user's current role
-    const { data: targetMembership } = await supabase
+    const { data: targetMembership } = await adminSupabase
       .from('memberships')
       .select('role')
       .eq('user_id', userId)
@@ -144,7 +145,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
     // Prevent last owner from being demoted
     if (targetRole === 'owner' && newRole !== 'owner') {
-      const { count } = await supabase
+      const { count } = await adminSupabase
         .from('memberships')
         .select('*', { count: 'exact', head: true })
         .eq('organization_id', orgId)
@@ -158,10 +159,10 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       }
     }
 
-    // Update role
-    const { error } = await supabase
+    // Update role using admin client to bypass RLS
+    const { error } = await adminSupabase
       .from('memberships')
-      .update({ role: newRole } as never)
+      .update({ role: newRole })
       .eq('user_id', userId)
       .eq('organization_id', orgId);
 
@@ -187,6 +188,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
     const { orgId } = await params;
     const supabase = await createClient();
+    const adminSupabase = createAdminClient();
 
     const {
       data: { user },
@@ -207,8 +209,8 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     const isSelf = userId === user.id;
 
     if (!isSelf) {
-      // Check admin/owner
-      const { data: membership } = await supabase
+      // Check admin/owner using admin client
+      const { data: membership } = await adminSupabase
         .from('memberships')
         .select('role')
         .eq('user_id', user.id)
@@ -222,7 +224,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     }
 
     // Prevent removing last owner
-    const { data: targetMembership } = await supabase
+    const { data: targetMembership } = await adminSupabase
       .from('memberships')
       .select('role')
       .eq('user_id', userId)
@@ -230,7 +232,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       .single();
 
     if ((targetMembership as { role: string } | null)?.role === 'owner') {
-      const { count } = await supabase
+      const { count } = await adminSupabase
         .from('memberships')
         .select('*', { count: 'exact', head: true })
         .eq('organization_id', orgId)
@@ -244,8 +246,8 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       }
     }
 
-    // Remove member
-    const { error } = await supabase
+    // Remove member using admin client to bypass RLS
+    const { error } = await adminSupabase
       .from('memberships')
       .delete()
       .eq('user_id', userId)

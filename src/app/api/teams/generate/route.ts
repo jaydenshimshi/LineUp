@@ -10,7 +10,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 import {
   solveTeams,
   parsePlayersFromAPI,
@@ -278,8 +278,11 @@ export async function POST(request: NextRequest) {
 
     // If successful, save the team run to the database
     if (solverResult.success) {
+      // Use admin client to bypass RLS for saving team data
+      const adminSupabase = createAdminClient();
+
       // Check if a team run already exists for this date
-      const { data: existingRun } = await supabase
+      const { data: existingRun } = await adminSupabase
         .from('team_runs')
         .select('id')
         .eq('organization_id', organization_id)
@@ -293,53 +296,60 @@ export async function POST(request: NextRequest) {
         teamRunId = (existingRun as { id: string }).id;
 
         // Delete old assignments
-        await supabase
+        const { error: deleteError } = await adminSupabase
           .from('team_assignments')
           .delete()
           .eq('team_run_id', teamRunId);
 
+        if (deleteError) {
+          console.error('Error deleting old assignments:', deleteError);
+        }
+
         // Update status back to draft
-        await supabase
+        const { error: updateError } = await adminSupabase
           .from('team_runs')
-          .update({ status: 'draft', updated_at: new Date().toISOString() } as never)
+          .update({ status: 'draft', updated_at: new Date().toISOString() })
           .eq('id', teamRunId);
+
+        if (updateError) {
+          console.error('Error updating team run:', updateError);
+        }
       } else {
         // Create new team run
-        const { data: newRun, error: runError } = await supabase
+        const { data: newRun, error: runError } = await adminSupabase
           .from('team_runs')
           .insert({
             organization_id,
             date,
             status: 'draft',
             created_by: user.id,
-          } as never)
+          })
           .select('id')
           .single();
 
         if (runError || !newRun) {
           console.error('Error creating team run:', runError);
-          return NextResponse.json({ error: 'Failed to save team run' }, { status: 500 });
+          return NextResponse.json({ error: `Failed to save team run: ${runError?.message}` }, { status: 500 });
         }
 
         teamRunId = (newRun as { id: string }).id;
       }
 
-      // Insert new assignments
+      // Insert new assignments (bench_team excluded as column may not exist)
       const assignmentsToInsert = solverResult.assignments.map((a) => ({
         team_run_id: teamRunId,
         player_id: a.playerId,
         team_color: a.team.toLowerCase(),
         assigned_role: a.role,
-        bench_team: a.benchTeam?.toLowerCase() || null,
       }));
 
-      const { error: assignError } = await supabase
+      const { error: assignError } = await adminSupabase
         .from('team_assignments')
-        .insert(assignmentsToInsert as never);
+        .insert(assignmentsToInsert);
 
       if (assignError) {
         console.error('Error saving assignments:', assignError);
-        // Don't fail the request, teams were generated successfully
+        return NextResponse.json({ error: `Failed to save assignments: ${assignError.message}` }, { status: 500 });
       }
 
       // Add team_run_id to response

@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -49,21 +49,24 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
     }
 
-    const body = await request.json();
-    const { title, message, scope_type, scope_date, urgency, visible_from, visible_until } = body;
+    const requestBody = await request.json();
+    const { title, message, scope_type, scope_date, urgency, visible_from, visible_until } = requestBody;
 
     const updates: Record<string, unknown> = {};
     if (title !== undefined) updates.title = title;
-    if (message !== undefined) updates.message = message;
+    if (message !== undefined) updates.body = message; // DB uses 'body', client uses 'message'
     if (scope_type !== undefined) updates.scope_type = scope_type;
     if (scope_date !== undefined) updates.scope_date = scope_date;
     if (urgency !== undefined) updates.urgency = urgency;
     if (visible_from !== undefined) updates.visible_from = visible_from;
     if (visible_until !== undefined) updates.visible_until = visible_until;
 
-    const { data: announcement, error } = await supabase
+    // Use admin client to bypass RLS (we've already verified admin status above)
+    const adminSupabase = createAdminClient();
+
+    const { data: announcement, error } = await adminSupabase
       .from('announcements')
-      .update(updates as never)
+      .update(updates)
       .eq('id', id)
       .select()
       .single();
@@ -76,7 +79,13 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       );
     }
 
-    return NextResponse.json({ announcement });
+    // Transform body to message for client compatibility
+    const transformedAnnouncement = {
+      ...announcement,
+      message: announcement.body,
+    };
+
+    return NextResponse.json({ announcement: transformedAnnouncement });
   } catch (error) {
     console.error('Announcement API error:', error);
     return NextResponse.json(
@@ -124,7 +133,10 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
     }
 
-    const { error } = await supabase
+    // Use admin client to bypass RLS (we've already verified admin status above)
+    const adminSupabase = createAdminClient();
+
+    const { error } = await adminSupabase
       .from('announcements')
       .delete()
       .eq('id', id);

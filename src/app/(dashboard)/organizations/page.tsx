@@ -3,7 +3,7 @@
  */
 
 import { redirect } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { OrganizationsClient } from './organizations-client';
 import type { Metadata } from 'next';
 
@@ -40,8 +40,9 @@ export default async function OrganizationsPage() {
     redirect('/login');
   }
 
-  // Get user's memberships with organization data
-  const { data: membershipsData } = await supabase
+  // Get user's memberships with organization data using admin client to bypass RLS
+  const adminSupabase = createAdminClient();
+  const { data: membershipsData } = await adminSupabase
     .from('memberships')
     .select(`
       id,

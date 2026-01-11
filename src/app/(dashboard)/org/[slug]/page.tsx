@@ -6,7 +6,7 @@
 import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
 import { format } from 'date-fns';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 import {
   Card,
   CardContent,
@@ -53,8 +53,11 @@ export default async function OrgHomePage({ params }: PageProps) {
     redirect('/login');
   }
 
+  // Use admin client to bypass RLS
+  const adminSupabase = createAdminClient();
+
   // Get organization
-  const { data: org, error: orgError } = await supabase
+  const { data: org, error: orgError } = await adminSupabase
     .from('organizations')
     .select('id, name, slug, sport')
     .eq('slug', slug)
@@ -67,7 +70,7 @@ export default async function OrgHomePage({ params }: PageProps) {
   const orgData = org as { id: string; name: string; slug: string; sport: string };
 
   // Get membership and player profile for this org
-  const { data: membership } = await supabase
+  const { data: membership } = await adminSupabase
     .from('memberships')
     .select('role, player_id')
     .eq('user_id', user.id)
@@ -79,7 +82,7 @@ export default async function OrgHomePage({ params }: PageProps) {
   }
 
   // Get player profile for this org
-  const { data: player } = await supabase
+  const { data: player } = await adminSupabase
     .from('players')
     .select('id, full_name, main_position, profile_completed')
     .eq('user_id', user.id)
@@ -91,9 +94,9 @@ export default async function OrgHomePage({ params }: PageProps) {
 
   // Get announcements for this org (global + today-specific)
   const now = new Date().toISOString();
-  const { data: announcementsData } = await supabase
+  const { data: announcementsData } = await adminSupabase
     .from('announcements')
-    .select('id, title, message, scope_type, scope_date, urgency')
+    .select('id, title, body, scope_type, scope_date, urgency')
     .eq('organization_id', orgData.id)
     .lte('visible_from', now)
     .or(`visible_until.is.null,visible_until.gte.${now}`)
@@ -102,10 +105,30 @@ export default async function OrgHomePage({ params }: PageProps) {
     .order('created_at', { ascending: false })
     .limit(5);
 
-  const announcements = (announcementsData || []) as Announcement[];
+  // Transform body to message for client compatibility
+  interface DbAnnouncement {
+    id: string;
+    title: string;
+    body: string;
+    scope_type: 'global' | 'date_specific';
+    scope_date: string | null;
+    urgency: 'info' | 'important';
+  }
+
+  const announcements = (announcementsData || []).map((a) => {
+    const dbRow = a as DbAnnouncement;
+    return {
+      id: dbRow.id,
+      title: dbRow.title,
+      message: dbRow.body,
+      scope_type: dbRow.scope_type === 'date_specific' ? 'date' as const : 'global' as const,
+      scope_date: dbRow.scope_date,
+      urgency: dbRow.urgency,
+    };
+  });
 
   // Get today's check-in count
-  const { count: checkedInCount } = await supabase
+  const { count: checkedInCount } = await adminSupabase
     .from('checkins')
     .select('*', { count: 'exact', head: true })
     .eq('organization_id', orgData.id)
@@ -115,7 +138,7 @@ export default async function OrgHomePage({ params }: PageProps) {
   // Get player's check-in status
   let isCheckedIn = false;
   if (player) {
-    const { data: checkin } = await supabase
+    const { data: checkin } = await adminSupabase
       .from('checkins')
       .select('id')
       .eq('player_id', (player as { id: string }).id)
@@ -167,50 +190,46 @@ export default async function OrgHomePage({ params }: PageProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-primary/5 via-background to-background">
-        <div className="container mx-auto py-8 px-4 max-w-3xl">
-          {/* Welcome Header */}
-          <div className="mb-8">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-sm font-medium mb-3">
-              <span>&#128075;</span>
-              {format(today, 'EEEE, MMMM d')}
+    <div className="min-h-screen bg-background">
+        <div className="container mx-auto py-4 px-3 max-w-lg">
+          {/* Welcome Header - Compact */}
+          <div className="mb-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground">{format(today, 'EEEE, MMM d')}</p>
+                <h1 className="text-lg font-semibold mt-0.5">
+                  Hey, {playerData.full_name.split(' ')[0]}!
+                </h1>
+              </div>
+              <Badge variant="outline" className="text-[10px] h-5">
+                {playerData.main_position}
+              </Badge>
             </div>
-            <h1 className="text-3xl font-bold">
-              Hey, {playerData.full_name.split(' ')[0]}!
-            </h1>
-            <p className="text-muted-foreground mt-1">
-              Ready to play today?
-            </p>
           </div>
 
-          {/* Announcements */}
+          {/* Announcements - Compact */}
           {announcements.length > 0 && (
-            <div className="mb-6 space-y-3">
+            <div className="mb-4 space-y-2">
               {announcements.map((announcement) => (
                 <div
                   key={announcement.id}
-                  className={`p-4 rounded-xl border-2 ${
+                  className={`p-2.5 rounded-lg border ${
                     announcement.urgency === 'important'
-                      ? 'bg-amber-50 border-amber-300 dark:bg-amber-950/30 dark:border-amber-700'
-                      : 'bg-blue-50 border-blue-200 dark:bg-blue-950/30 dark:border-blue-800'
+                      ? 'bg-amber-50/50 border-amber-200 dark:bg-amber-950/20 dark:border-amber-800'
+                      : 'bg-blue-50/50 border-blue-200 dark:bg-blue-950/20 dark:border-blue-800'
                   }`}
                 >
-                  <div className="flex items-start gap-3">
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-lg ${
+                  <div className="flex items-start gap-2">
+                    <div className={`w-6 h-6 rounded flex items-center justify-center text-xs font-bold flex-shrink-0 ${
                       announcement.urgency === 'important'
-                        ? 'bg-amber-200 dark:bg-amber-800'
-                        : 'bg-blue-200 dark:bg-blue-800'
+                        ? 'bg-amber-200 text-amber-800 dark:bg-amber-800 dark:text-amber-200'
+                        : 'bg-blue-200 text-blue-800 dark:bg-blue-800 dark:text-blue-200'
                     }`}>
                       {announcement.urgency === 'important' ? '!' : 'i'}
                     </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-semibold">{announcement.title}</h3>
-                        {announcement.scope_type === 'date' && (
-                          <Badge variant="outline" className="text-xs">Today</Badge>
-                        )}
-                      </div>
-                      <p className="text-sm text-muted-foreground mt-1">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium truncate">{announcement.title}</p>
+                      <p className="text-[11px] text-muted-foreground line-clamp-2">
                         {announcement.message}
                       </p>
                     </div>
@@ -225,85 +244,94 @@ export default async function OrgHomePage({ params }: PageProps) {
             orgId={orgData.id}
             orgSlug={slug}
             playerId={playerData.id}
+            playerName={playerData.full_name}
             isCheckedIn={isCheckedIn}
             checkedInCount={checkedInCount || 0}
             date={today}
           />
 
-          {/* Quick Actions */}
-          <div className="mt-8 grid grid-cols-2 sm:grid-cols-4 gap-4">
+          {/* Quick Actions - Compact */}
+          <div className="mt-4 grid grid-cols-4 gap-2">
             <Link href={`/org/${slug}/checkin`}>
-              <Card className="hover:border-primary/50 hover:shadow-lg hover:-translate-y-1 transition-all cursor-pointer h-full group">
-                <CardContent className="pt-6 text-center">
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center text-2xl mx-auto mb-3 group-hover:scale-110 transition-transform">
+              <Card className="hover:border-primary/50 transition-all cursor-pointer h-full group">
+                <CardContent className="p-2 text-center">
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center text-base mx-auto mb-1 group-hover:scale-105 transition-transform">
                     <span>&#128197;</span>
                   </div>
-                  <p className="font-medium">Week View</p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Plan ahead
-                  </p>
+                  <p className="text-[11px] font-medium">Week</p>
                 </CardContent>
               </Card>
             </Link>
             <Link href={`/org/${slug}/teams`}>
-              <Card className="hover:border-primary/50 hover:shadow-lg hover:-translate-y-1 transition-all cursor-pointer h-full group">
-                <CardContent className="pt-6 text-center">
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500/20 to-blue-500/5 flex items-center justify-center text-2xl mx-auto mb-3 group-hover:scale-110 transition-transform">
+              <Card className="hover:border-primary/50 transition-all cursor-pointer h-full group">
+                <CardContent className="p-2 text-center">
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500/20 to-blue-500/5 flex items-center justify-center text-base mx-auto mb-1 group-hover:scale-105 transition-transform">
                     <span>&#128101;</span>
                   </div>
-                  <p className="font-medium">Teams</p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    View lineup
-                  </p>
+                  <p className="text-[11px] font-medium">Teams</p>
                 </CardContent>
               </Card>
             </Link>
             <Link href={`/org/${slug}/profile`}>
-              <Card className="hover:border-primary/50 hover:shadow-lg hover:-translate-y-1 transition-all cursor-pointer h-full group">
-                <CardContent className="pt-6 text-center">
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500/20 to-green-500/5 flex items-center justify-center text-2xl mx-auto mb-3 group-hover:scale-110 transition-transform">
+              <Card className="hover:border-primary/50 transition-all cursor-pointer h-full group">
+                <CardContent className="p-2 text-center">
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-green-500/20 to-green-500/5 flex items-center justify-center text-base mx-auto mb-1 group-hover:scale-105 transition-transform">
                     <span>&#128100;</span>
                   </div>
-                  <p className="font-medium">Profile</p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Edit info
-                  </p>
+                  <p className="text-[11px] font-medium">Profile</p>
                 </CardContent>
               </Card>
             </Link>
-            {isAdmin && (
+            {isAdmin ? (
               <Link href={`/org/${slug}/admin`}>
-                <Card className="hover:border-primary/50 hover:shadow-lg hover:-translate-y-1 transition-all cursor-pointer h-full group border-dashed">
-                  <CardContent className="pt-6 text-center">
-                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-500/20 to-amber-500/5 flex items-center justify-center text-2xl mx-auto mb-3 group-hover:scale-110 transition-transform">
+                <Card className="hover:border-primary/50 transition-all cursor-pointer h-full group border-dashed">
+                  <CardContent className="p-2 text-center">
+                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-500/20 to-amber-500/5 flex items-center justify-center text-base mx-auto mb-1 group-hover:scale-105 transition-transform">
                       <span>&#9881;</span>
                     </div>
-                    <p className="font-medium">Admin</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Manage group
-                    </p>
+                    <p className="text-[11px] font-medium">Admin</p>
+                  </CardContent>
+                </Card>
+              </Link>
+            ) : (
+              <Link href={`/org/${slug}/attendance`}>
+                <Card className="hover:border-primary/50 transition-all cursor-pointer h-full group">
+                  <CardContent className="p-2 text-center">
+                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500/20 to-purple-500/5 flex items-center justify-center text-base mx-auto mb-1 group-hover:scale-105 transition-transform">
+                      <span>&#128200;</span>
+                    </div>
+                    <p className="text-[11px] font-medium">History</p>
                   </CardContent>
                 </Card>
               </Link>
             )}
           </div>
 
-          {/* Game Status Summary */}
-          <div className="mt-8 p-4 rounded-xl bg-muted/30 border">
+          {/* Your Status - Compact */}
+          <div className="mt-4 p-2.5 rounded-lg bg-muted/30 border">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Your status for today</p>
-                <p className="font-medium mt-1">
-                  {isCheckedIn ? (
-                    <span className="text-green-600 dark:text-green-400 flex items-center gap-1">
-                      <span>&#9989;</span> You&apos;re playing!
-                    </span>
-                  ) : (
-                    <span className="text-muted-foreground">Not checked in yet</span>
-                  )}
-                </p>
+              <div className="flex items-center gap-2">
+                <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-medium ${
+                  isCheckedIn
+                    ? 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300'
+                    : 'bg-muted text-muted-foreground'
+                }`}>
+                  {playerData.full_name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()}
+                </div>
+                <div>
+                  <p className="text-xs font-medium">{playerData.full_name}</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {isCheckedIn ? (
+                      <span className="text-green-600 dark:text-green-400">
+                        ✓ Checked in
+                      </span>
+                    ) : (
+                      <span>Not checked in</span>
+                    )}
+                  </p>
+                </div>
               </div>
-              <Badge variant="outline" className="text-muted-foreground">
+              <Badge variant="outline" className="text-[10px] h-5">
                 {playerData.main_position}
               </Badge>
             </div>

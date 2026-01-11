@@ -4,7 +4,7 @@
  */
 
 import { redirect, notFound } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { OrgNav } from '@/components/org/org-nav';
 
 interface OrgLayoutProps {
@@ -24,8 +24,11 @@ export default async function OrgLayout({ children, params }: OrgLayoutProps) {
     redirect('/login');
   }
 
+  // Use admin client to bypass RLS for organization lookup
+  const adminSupabase = createAdminClient();
+
   // Get organization by slug
-  const { data: org, error: orgError } = await supabase
+  const { data: org, error: orgError } = await adminSupabase
     .from('organizations')
     .select('id, name, slug, sport, logo_url')
     .eq('slug', slug)
@@ -43,8 +46,8 @@ export default async function OrgLayout({ children, params }: OrgLayoutProps) {
     logo_url: string | null;
   };
 
-  // Check membership
-  const { data: membership, error: memberError } = await supabase
+  // Check membership using admin client
+  const { data: membership, error: memberError } = await adminSupabase
     .from('memberships')
     .select('role')
     .eq('user_id', user.id)

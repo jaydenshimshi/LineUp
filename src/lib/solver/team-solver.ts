@@ -1,17 +1,12 @@
 /**
  * Team Balancing Solver - Production Grade
  *
- * A sophisticated TypeScript implementation of balanced team generation.
- * Uses multi-objective optimization with simulated annealing for near-optimal results.
- *
- * Features:
- * - Skill balance optimization (minimize gap between teams)
- * - Age balance optimization
- * - Position coverage (ensures GK, balanced formations)
- * - Simulated annealing for global optimization
- * - Fair sub allocation with bench team assignment
- *
- * This runs directly in Next.js - deploys anywhere.
+ * Robust team generation algorithm that:
+ * - Creates balanced teams by skill rating
+ * - Distributes positions properly (GK, DF, MID, ST)
+ * - Handles uneven teams (4v3, 5v4, 6v5, 7v6)
+ * - Only creates subs when >14 players
+ * - Uses simulated annealing for optimization
  */
 
 // Types
@@ -32,7 +27,7 @@ export interface PlayerAssignment {
   playerName: string;
   team: TeamColor;
   role: Position;
-  benchTeam?: TeamColor | null;
+  benchTeam?: TeamColor | null; // For subs: which team they belong to
 }
 
 export interface TeamMetrics {
@@ -55,56 +50,81 @@ export interface SolveResult {
   solveTimeMs: number;
 }
 
-// Configuration - matches OR-Tools solver weights
+// Configuration
 const CONFIG = {
-  MIN_PLAYERS_TO_PLAY: 6,
-  MIN_TEAM_SIZE: 3,
+  MIN_PLAYERS: 6,
   MAX_TEAM_SIZE: 7,
+  THREE_TEAM_THRESHOLD: 21, // 3 teams only when 21+ players
 
   // Optimization weights (higher = more important)
-  W_SKILL_BALANCE: 1000,
-  W_AGE_BALANCE: 200,
-  W_POSITION_MISMATCH: 80,
-  W_GK_MISSING: 500,
-  W_FORMATION_SLACK: 50,
+  W_SKILL_BALANCE: 1000,    // Most important: balanced skill
+  W_AGE_BALANCE: 100,       // Secondary: balanced age
+  W_POSITION_COVERAGE: 500, // Important: proper position distribution
+  W_GK_COVERAGE: 800,       // Very important: each team has a GK
 
   // Simulated annealing parameters
   SA_INITIAL_TEMP: 100,
   SA_COOLING_RATE: 0.995,
   SA_MIN_TEMP: 0.1,
-  SA_ITERATIONS_PER_TEMP: 50,
+  SA_ITERATIONS_PER_TEMP: 100,
 
-  // Formation targets by team size
+  // Target formations by team size
+  // Format: [GK, DF, MID, ST]
   FORMATIONS: {
     3: { GK: 0, DF: 1, MID: 1, ST: 1 },
     4: { GK: 1, DF: 1, MID: 1, ST: 1 },
     5: { GK: 1, DF: 2, MID: 1, ST: 1 },
     6: { GK: 1, DF: 2, MID: 2, ST: 1 },
-    7: { GK: 1, DF: 2, MID: 2, ST: 2 },
+    7: { GK: 1, DF: 3, MID: 2, ST: 1 }, // 1-3-2-1 formation
   } as Record<number, Record<Position, number>>,
 };
 
 /**
- * Determine number of teams based on player count
- * Yellow team only exists if >= 21 players
+ * Calculate team structure based on player count
+ *
+ * Rules:
+ * - 6-14 players: 2 teams, ALL players play (uneven OK: 4v3, 5v4, etc.)
+ * - 15-20 players: 2 teams of 7 + subs (subs assigned to RED or BLUE)
+ * - 21+ players: 3 teams of 7 (+ subs if >21)
  */
-function getTeamCount(playerCount: number): number {
-  return playerCount >= 21 ? 3 : 2;
-}
-
-/**
- * Calculate team sizes based on 7-a-side preference
- */
-function getTeamSizes(playerCount: number, teamCount: number): number[] {
-  if (playerCount >= 21 && teamCount === 3) {
-    return [7, 7, 7];
-  } else if (playerCount >= 14) {
-    return [7, 7];
-  } else {
-    const perTeam = Math.min(7, Math.max(3, Math.floor(playerCount / 2)));
-    const remainder = playerCount - perTeam;
-    return [perTeam, Math.min(7, Math.max(3, remainder))];
+function calculateTeamStructure(playerCount: number): {
+  teamCount: number;
+  teamSizes: number[];
+  subCount: number;
+  teamColors: TeamColor[];
+} {
+  // 21+ players: 3 teams
+  if (playerCount >= CONFIG.THREE_TEAM_THRESHOLD) {
+    const playingPlayers = 21; // 7v7v7
+    const subCount = playerCount - playingPlayers;
+    return {
+      teamCount: 3,
+      teamSizes: [7, 7, 7],
+      subCount,
+      teamColors: ['RED', 'BLUE', 'YELLOW'],
+    };
   }
+
+  // 15-20 players: 2 teams of 7 + subs
+  if (playerCount > 14) {
+    const subCount = playerCount - 14;
+    return {
+      teamCount: 2,
+      teamSizes: [7, 7],
+      subCount,
+      teamColors: ['RED', 'BLUE'],
+    };
+  }
+
+  // 6-14 players: 2 teams, all play, uneven is OK
+  const biggerTeam = Math.ceil(playerCount / 2);
+  const smallerTeam = Math.floor(playerCount / 2);
+  return {
+    teamCount: 2,
+    teamSizes: [biggerTeam, smallerTeam],
+    subCount: 0,
+    teamColors: ['RED', 'BLUE'],
+  };
 }
 
 /**
@@ -118,13 +138,8 @@ function canPlayPosition(player: Player, position: Position): boolean {
  * Get formation target for team size
  */
 function getFormationTarget(teamSize: number): Record<Position, number> {
-  const sizes = Object.keys(CONFIG.FORMATIONS).map(Number).sort((a, b) => b - a);
-  for (const size of sizes) {
-    if (teamSize >= size) {
-      return CONFIG.FORMATIONS[size];
-    }
-  }
-  return CONFIG.FORMATIONS[3];
+  const clamped = Math.max(3, Math.min(7, teamSize));
+  return CONFIG.FORMATIONS[clamped] || CONFIG.FORMATIONS[7];
 }
 
 /**
@@ -132,68 +147,140 @@ function getFormationTarget(teamSize: number): Record<Position, number> {
  */
 interface SolutionState {
   teams: Map<TeamColor, Player[]>;
-  subs: Player[];
+  subs: Array<{ player: Player; benchTeam: TeamColor }>;
   teamColors: TeamColor[];
   targetSizes: number[];
 }
 
 /**
+ * Calculate player's effective strength considering versatility
+ * Players who can play multiple positions are more valuable
+ */
+function getPlayerEffectiveStrength(player: Player): number {
+  let strength = player.rating;
+
+  // Bonus for having an alternate position (versatility)
+  if (player.altPosition) {
+    strength += 0.3; // Versatile players are slightly more valuable
+  }
+
+  // Extra bonus for GK capability (rare and valuable)
+  if (player.mainPosition === 'GK' || player.altPosition === 'GK') {
+    strength += 0.2;
+  }
+
+  return strength;
+}
+
+/**
+ * Calculate team's position coverage considering alt positions
+ * Returns how well a team can cover all positions
+ */
+function getPositionCoverage(players: Player[]): Record<Position, number> {
+  const coverage: Record<Position, number> = { GK: 0, DF: 0, MID: 0, ST: 0 };
+
+  for (const player of players) {
+    // Main position counts as 1.0
+    coverage[player.mainPosition] += 1.0;
+    // Alt position counts as 0.5 (can cover if needed)
+    if (player.altPosition) {
+      coverage[player.altPosition] += 0.5;
+    }
+  }
+
+  return coverage;
+}
+
+/**
  * Calculate objective score (lower is better)
  */
-function calculateObjective(state: SolutionState, allPlayers: Player[]): number {
+function calculateObjective(state: SolutionState): number {
   let score = 0;
   const { teams, teamColors } = state;
 
-  // Get team stats
+  // Get team stats including effective strength (considers versatility)
   const teamStats = teamColors.map(color => {
     const team = teams.get(color) || [];
     return {
       color,
       players: team,
       skillSum: team.reduce((s, p) => s + p.rating, 0),
+      effectiveStrength: team.reduce((s, p) => s + getPlayerEffectiveStrength(p), 0),
       ageSum: team.reduce((s, p) => s + p.age, 0),
       size: team.length,
+      positionCoverage: getPositionCoverage(team),
     };
   });
 
-  // 1. Skill balance - minimize max-min gap
-  const skills = teamStats.map(t => t.skillSum);
-  const skillGap = Math.max(...skills) - Math.min(...skills);
-  score += CONFIG.W_SKILL_BALANCE * skillGap;
+  // Filter out empty teams for calculations
+  const activeTeams = teamStats.filter(t => t.size > 0);
+  if (activeTeams.length < 2) return score;
 
-  // 2. Age balance - minimize max-min gap
-  const ages = teamStats.map(t => t.ageSum);
-  const ageGap = Math.max(...ages) - Math.min(...ages);
+  // 1. Effective strength balance (considers skill + versatility)
+  // For uneven teams, normalize by team size
+  const strengthNormalized = activeTeams.map(t => t.effectiveStrength / Math.max(1, t.size));
+  const strengthGap = Math.max(...strengthNormalized) - Math.min(...strengthNormalized);
+  score += CONFIG.W_SKILL_BALANCE * strengthGap;
+
+  // Also penalize absolute skill difference (raw ratings should be close)
+  const skills = activeTeams.map(t => t.skillSum);
+  const avgSkill = skills.reduce((a, b) => a + b, 0) / skills.length;
+  for (const skill of skills) {
+    score += CONFIG.W_SKILL_BALANCE * 0.15 * Math.abs(skill - avgSkill);
+  }
+
+  // 2. Age balance - minimize max-min gap (normalized)
+  const agesNormalized = activeTeams.map(t => t.ageSum / Math.max(1, t.size));
+  const ageGap = Math.max(...agesNormalized) - Math.min(...agesNormalized);
   score += CONFIG.W_AGE_BALANCE * ageGap;
 
-  // 3. GK coverage penalty
-  for (const stat of teamStats) {
-    const hasGK = stat.players.some(p => canPlayPosition(p, 'GK'));
-    if (!hasGK && stat.size > 0) {
-      score += CONFIG.W_GK_MISSING;
+  // 3. GK coverage - each team should have a GK (if possible)
+  for (const stat of activeTeams) {
+    if (stat.size >= 4) { // Only require GK for teams of 4+
+      const hasGK = stat.players.some(p => canPlayPosition(p, 'GK'));
+      if (!hasGK) {
+        score += CONFIG.W_GK_COVERAGE;
+      }
     }
   }
 
-  // 4. Formation slack penalty
-  for (const stat of teamStats) {
-    if (stat.size === 0) continue;
+  // 4. Position distribution - use coverage that considers alt positions
+  for (const stat of activeTeams) {
     const target = getFormationTarget(stat.size);
-    const actual: Record<Position, number> = { GK: 0, DF: 0, MID: 0, ST: 0 };
+    const coverage = stat.positionCoverage;
 
-    for (const player of stat.players) {
-      actual[player.mainPosition]++;
+    // Penalize deviation from ideal formation (using coverage which includes alt positions)
+    for (const pos of ['GK', 'DF', 'MID', 'ST'] as Position[]) {
+      // If coverage is less than target, that's a problem
+      const shortfall = Math.max(0, target[pos] - coverage[pos]);
+      score += CONFIG.W_POSITION_COVERAGE * shortfall;
     }
 
-    for (const pos of ['GK', 'DF', 'MID', 'ST'] as Position[]) {
-      score += CONFIG.W_FORMATION_SLACK * Math.abs(actual[pos] - target[pos]);
+    // Heavy penalty if a single position dominates (even with alts)
+    const mainPositions: Record<Position, number> = { GK: 0, DF: 0, MID: 0, ST: 0 };
+    for (const player of stat.players) {
+      mainPositions[player.mainPosition]++;
+    }
+
+    for (const pos of ['DF', 'MID', 'ST'] as Position[]) {
+      if (mainPositions[pos] > stat.size * 0.6) {
+        score += CONFIG.W_POSITION_COVERAGE * 2;
+      }
     }
   }
+
+  // 5. Versatility balance - teams should have similar flexibility
+  const versatilityScores = activeTeams.map(t =>
+    t.players.filter(p => p.altPosition).length / Math.max(1, t.size)
+  );
+  const versatilityGap = Math.max(...versatilityScores) - Math.min(...versatilityScores);
+  score += CONFIG.W_POSITION_COVERAGE * 0.3 * versatilityGap;
 
   return score;
 }
 
 /**
- * Generate a neighbor solution by swapping two players
+ * Generate a neighbor solution by swapping players
  */
 function generateNeighbor(state: SolutionState): SolutionState {
   const newState: SolutionState = {
@@ -209,46 +296,68 @@ function generateNeighbor(state: SolutionState): SolutionState {
   }
 
   const random = Math.random();
+  const activeTeamColors = state.teamColors.filter(
+    c => (state.teams.get(c)?.length || 0) > 0
+  );
 
-  if (random < 0.7 && state.teamColors.length >= 2) {
-    // 70% chance: Swap between two teams
-    const colorIndices = [...Array(state.teamColors.length).keys()];
-    const idx1 = colorIndices[Math.floor(Math.random() * colorIndices.length)];
+  // Only allow swapping with subs if there ARE subs (>14 players)
+  // For 6-14 players, subs.length should be 0, so we only swap between teams
+  const allowSubSwaps = state.subs.length > 0;
+
+  if (random < 0.8 && activeTeamColors.length >= 2) {
+    // 80% chance: Swap between two teams
+    const idx1 = Math.floor(Math.random() * activeTeamColors.length);
     let idx2 = idx1;
-    while (idx2 === idx1 && colorIndices.length > 1) {
-      idx2 = colorIndices[Math.floor(Math.random() * colorIndices.length)];
+    while (idx2 === idx1) {
+      idx2 = Math.floor(Math.random() * activeTeamColors.length);
     }
 
-    const team1 = newState.teams.get(state.teamColors[idx1])!;
-    const team2 = newState.teams.get(state.teamColors[idx2])!;
+    const team1 = newState.teams.get(activeTeamColors[idx1])!;
+    const team2 = newState.teams.get(activeTeamColors[idx2])!;
 
     if (team1.length > 0 && team2.length > 0) {
       const i1 = Math.floor(Math.random() * team1.length);
       const i2 = Math.floor(Math.random() * team2.length);
       [team1[i1], team2[i2]] = [team2[i2], team1[i1]];
     }
-  } else if (random < 0.9 && newState.subs.length > 0) {
-    // 20% chance: Swap with subs
-    const colorIdx = Math.floor(Math.random() * state.teamColors.length);
-    const team = newState.teams.get(state.teamColors[colorIdx])!;
-    const targetSize = state.targetSizes[colorIdx];
+  } else if (random < 0.95 && allowSubSwaps && newState.subs.length > 0) {
+    // 15% chance: Swap player with sub (ONLY if subs are allowed)
+    const colorIdx = Math.floor(Math.random() * activeTeamColors.length);
+    const team = newState.teams.get(activeTeamColors[colorIdx])!;
 
-    if (team.length > 0 && team.length >= targetSize && newState.subs.length > 0) {
+    if (team.length > 0) {
       const teamIdx = Math.floor(Math.random() * team.length);
       const subIdx = Math.floor(Math.random() * newState.subs.length);
-      [team[teamIdx], newState.subs[subIdx]] = [newState.subs[subIdx], team[teamIdx]];
+
+      const oldPlayer = team[teamIdx];
+      const subEntry = newState.subs[subIdx];
+
+      team[teamIdx] = subEntry.player;
+      newState.subs[subIdx] = { player: oldPlayer, benchTeam: subEntry.benchTeam };
     }
   } else {
-    // 10% chance: Shuffle within team
-    const colorIdx = Math.floor(Math.random() * state.teamColors.length);
-    const team = newState.teams.get(state.teamColors[colorIdx])!;
-    if (team.length >= 2) {
-      const i = Math.floor(Math.random() * team.length);
-      let j = i;
-      while (j === i) {
-        j = Math.floor(Math.random() * team.length);
+    // 5% chance: Move player between teams (for uneven team sizes)
+    if (activeTeamColors.length >= 2) {
+      // Find teams with different sizes
+      const teamSizes = activeTeamColors.map(c => ({
+        color: c,
+        size: newState.teams.get(c)?.length || 0,
+      }));
+
+      const bigger = teamSizes.reduce((a, b) => a.size > b.size ? a : b);
+      const smaller = teamSizes.reduce((a, b) => a.size < b.size ? a : b);
+
+      if (bigger.size > smaller.size + 1) {
+        // Move one player from bigger to smaller
+        const bigTeam = newState.teams.get(bigger.color)!;
+        const smallTeam = newState.teams.get(smaller.color)!;
+
+        if (bigTeam.length > 0) {
+          const idx = Math.floor(Math.random() * bigTeam.length);
+          const player = bigTeam.splice(idx, 1)[0];
+          smallTeam.push(player);
+        }
       }
-      [team[i], team[j]] = [team[j], team[i]];
     }
   }
 
@@ -258,12 +367,9 @@ function generateNeighbor(state: SolutionState): SolutionState {
 /**
  * Simulated annealing optimization
  */
-function optimizeWithSA(
-  initialState: SolutionState,
-  allPlayers: Player[]
-): SolutionState {
+function optimizeWithSA(initialState: SolutionState): SolutionState {
   let currentState = initialState;
-  let currentScore = calculateObjective(currentState, allPlayers);
+  let currentScore = calculateObjective(currentState);
   let bestState = currentState;
   let bestScore = currentScore;
 
@@ -272,7 +378,7 @@ function optimizeWithSA(
   while (temperature > CONFIG.SA_MIN_TEMP) {
     for (let i = 0; i < CONFIG.SA_ITERATIONS_PER_TEMP; i++) {
       const neighborState = generateNeighbor(currentState);
-      const neighborScore = calculateObjective(neighborState, allPlayers);
+      const neighborScore = calculateObjective(neighborState);
 
       const delta = neighborScore - currentScore;
 
@@ -295,52 +401,58 @@ function optimizeWithSA(
 }
 
 /**
- * Create initial solution using greedy assignment
+ * Create initial solution using smart assignment
  */
 function createInitialSolution(
   players: Player[],
-  teamColors: TeamColor[],
-  targetSizes: number[]
+  structure: ReturnType<typeof calculateTeamStructure>
 ): SolutionState {
+  const { teamColors, teamSizes, subCount } = structure;
   const teams: Map<TeamColor, Player[]> = new Map();
   teamColors.forEach(color => teams.set(color, []));
 
   const assigned = new Set<string>();
 
-  // Sort players: GKs first (rare resource), then by rating
-  const sortedPlayers = [...players].sort((a, b) => {
-    if (a.mainPosition === 'GK' && b.mainPosition !== 'GK') return -1;
-    if (b.mainPosition === 'GK' && a.mainPosition !== 'GK') return 1;
-    if (a.altPosition === 'GK' && b.altPosition !== 'GK') return -1;
-    if (b.altPosition === 'GK' && a.altPosition !== 'GK') return 1;
-    return b.rating - a.rating;
-  });
+  // Sort players by rating (highest first) to enable balanced distribution
+  const sortedPlayers = [...players].sort((a, b) => b.rating - a.rating);
 
-  // First pass: Assign one GK per team
-  const gkPlayers = sortedPlayers.filter(p =>
-    p.mainPosition === 'GK' || p.altPosition === 'GK'
-  );
+  // Separate GKs for special handling
+  const gkPlayers = sortedPlayers.filter(p => p.mainPosition === 'GK' || p.altPosition === 'GK');
+  const nonGkPlayers = sortedPlayers.filter(p => p.mainPosition !== 'GK' && p.altPosition !== 'GK');
 
+  // First: Assign one GK per team (if available)
   for (let i = 0; i < teamColors.length && i < gkPlayers.length; i++) {
-    teams.get(teamColors[i])!.push(gkPlayers[i]);
-    assigned.add(gkPlayers[i].id);
+    const gk = gkPlayers[i];
+    teams.get(teamColors[i])!.push(gk);
+    assigned.add(gk.id);
   }
 
-  // Second pass: Snake draft for remaining players
-  const remaining = sortedPlayers.filter(p => !assigned.has(p.id));
+  // Remaining GKs go into the general pool
+  const remainingGks = gkPlayers.filter(p => !assigned.has(p.id));
+  const remainingPlayers = [...remainingGks, ...nonGkPlayers];
+
+  // Snake draft: distribute remaining players fairly
+  // High rated players distributed alternating to balance skill
   let playerIdx = 0;
   let round = 0;
 
-  while (playerIdx < remaining.length) {
+  const totalPlayingSpots = teamSizes.reduce((a, b) => a + b, 0);
+  const playersToAssign = Math.min(remainingPlayers.length, totalPlayingSpots - assigned.size);
+
+  while (playerIdx < playersToAssign) {
+    // Alternate direction each round for fairness
     const order = round % 2 === 0 ? [...teamColors] : [...teamColors].reverse();
 
     for (const color of order) {
-      if (playerIdx >= remaining.length) break;
+      if (playerIdx >= playersToAssign) break;
 
       const team = teams.get(color)!;
-      if (team.length < targetSizes[teamColors.indexOf(color)]) {
-        team.push(remaining[playerIdx]);
-        assigned.add(remaining[playerIdx].id);
+      const targetSize = teamSizes[teamColors.indexOf(color)];
+
+      if (team.length < targetSize) {
+        const player = remainingPlayers[playerIdx];
+        team.push(player);
+        assigned.add(player.id);
         playerIdx++;
       }
     }
@@ -350,29 +462,56 @@ function createInitialSolution(
     if (round > players.length * 2) break;
   }
 
-  // Remaining become subs
-  const subs = remaining.filter(p => !assigned.has(p.id));
+  // Check for unassigned players
+  const unassignedPlayers = players.filter(p => !assigned.has(p.id));
 
-  return { teams, subs, teamColors, targetSizes };
+  // IMPORTANT: For 6-14 players, ALL should be on teams (no subs)
+  // If there are unassigned players and subCount is 0, force them onto teams
+  if (unassignedPlayers.length > 0 && subCount === 0) {
+    console.log('[SOLVER] WARNING: Found unassigned players when subCount=0, forcing onto teams');
+    // Distribute remaining players to teams (alternate to maintain balance)
+    let teamIndex = 0;
+    for (const player of unassignedPlayers) {
+      const color = teamColors[teamIndex % teamColors.length];
+      teams.get(color)!.push(player);
+      assigned.add(player.id);
+      teamIndex++;
+    }
+  }
+
+  // Remaining players become subs (only when subCount > 0)
+  const subs: Array<{ player: Player; benchTeam: TeamColor }> = [];
+  const stillUnassigned = players.filter(p => !assigned.has(p.id));
+
+  // Sort subs by rating to distribute fairly
+  stillUnassigned.sort((a, b) => b.rating - a.rating);
+
+  for (let i = 0; i < stillUnassigned.length; i++) {
+    // Alternate between RED and BLUE for sub assignment
+    const benchTeam = i % 2 === 0 ? 'RED' : 'BLUE';
+    subs.push({ player: stillUnassigned[i], benchTeam: benchTeam as TeamColor });
+  }
+
+  return { teams, subs, teamColors, targetSizes: teamSizes };
 }
 
 /**
  * Assign positions to players on each team
  */
-function assignPositions(
-  state: SolutionState
-): Map<string, Position> {
+function assignPositions(state: SolutionState): Map<string, Position> {
   const assignments = new Map<string, Position>();
 
   for (const color of state.teamColors) {
     const team = state.teams.get(color) || [];
+    if (team.length === 0) continue;
+
     const target = getFormationTarget(team.length);
     const filled: Record<Position, number> = { GK: 0, DF: 0, MID: 0, ST: 0 };
 
-    // Sort by position scarcity (GK first)
+    // Sort: GKs first, then by position scarcity
     const sorted = [...team].sort((a, b) => {
-      if (a.mainPosition === 'GK') return -1;
-      if (b.mainPosition === 'GK') return 1;
+      if (a.mainPosition === 'GK' && b.mainPosition !== 'GK') return -1;
+      if (b.mainPosition === 'GK' && a.mainPosition !== 'GK') return 1;
       return 0;
     });
 
@@ -387,7 +526,7 @@ function assignPositions(
       else if (player.altPosition && filled[player.altPosition] < target[player.altPosition]) {
         assigned = player.altPosition;
       }
-      // Find any unfilled position
+      // Find any unfilled position (prefer non-GK)
       else {
         for (const pos of ['DF', 'MID', 'ST', 'GK'] as Position[]) {
           if (filled[pos] < target[pos]) {
@@ -403,8 +542,8 @@ function assignPositions(
   }
 
   // Subs get their main position
-  for (const player of state.subs) {
-    assignments.set(player.id, player.mainPosition);
+  for (const sub of state.subs) {
+    assignments.set(sub.player.id, sub.player.mainPosition);
   }
 
   return assignments;
@@ -417,11 +556,14 @@ export function solveTeams(players: Player[]): SolveResult {
   const startTime = performance.now();
   const warnings: string[] = [];
 
+  console.log('[SOLVER] Input players:', players.length);
+  console.log('[SOLVER] Players:', players.map(p => ({ id: p.id, name: p.name, pos: p.mainPosition })));
+
   // Validate minimum players
-  if (players.length < CONFIG.MIN_PLAYERS_TO_PLAY) {
+  if (players.length < CONFIG.MIN_PLAYERS) {
     return {
       success: false,
-      message: `Not enough players (${players.length}). Need at least ${CONFIG.MIN_PLAYERS_TO_PLAY}.`,
+      message: `Not enough players (${players.length}). Need at least ${CONFIG.MIN_PLAYERS}.`,
       assignments: [],
       teamMetrics: [],
       warnings: [],
@@ -429,26 +571,27 @@ export function solveTeams(players: Player[]): SolveResult {
     };
   }
 
-  const teamCount = getTeamCount(players.length);
-  const teamColors: TeamColor[] = teamCount === 3
-    ? ['RED', 'BLUE', 'YELLOW']
-    : ['RED', 'BLUE'];
-  const targetSizes = getTeamSizes(players.length, teamCount);
+  // Calculate team structure
+  const structure = calculateTeamStructure(players.length);
+  console.log('[SOLVER] Structure:', structure);
+  const { teamColors, subCount } = structure;
 
   // Check GK availability
   const gkCount = players.filter(p =>
     p.mainPosition === 'GK' || p.altPosition === 'GK'
   ).length;
 
-  if (gkCount < teamCount) {
-    warnings.push(`Only ${gkCount} goalkeeper(s) for ${teamCount} teams.`);
+  if (gkCount < structure.teamCount) {
+    warnings.push(`Only ${gkCount} goalkeeper(s) for ${structure.teamCount} teams. Some teams may lack a GK.`);
   }
 
   // Create initial solution
-  const initialState = createInitialSolution(players, teamColors, targetSizes);
+  const initialState = createInitialSolution(players, structure);
+  console.log('[SOLVER] Initial state - RED:', initialState.teams.get('RED')?.length, 'BLUE:', initialState.teams.get('BLUE')?.length, 'Subs:', initialState.subs.length);
 
   // Optimize with simulated annealing
-  const optimizedState = optimizeWithSA(initialState, players);
+  const optimizedState = optimizeWithSA(initialState);
+  console.log('[SOLVER] Optimized state - RED:', optimizedState.teams.get('RED')?.length, 'BLUE:', optimizedState.teams.get('BLUE')?.length, 'Subs:', optimizedState.subs.length);
 
   // Assign positions
   const positionAssignments = assignPositions(optimizedState);
@@ -468,22 +611,21 @@ export function solveTeams(players: Player[]): SolveResult {
     }
   }
 
-  // Assign subs with bench teams (fair distribution)
-  for (let i = 0; i < optimizedState.subs.length; i++) {
-    const player = optimizedState.subs[i];
+  // Add subs with their bench team assignment
+  for (const sub of optimizedState.subs) {
     assignments.push({
-      playerId: player.id,
-      playerName: player.name,
+      playerId: sub.player.id,
+      playerName: sub.player.name,
       team: 'SUB',
-      role: positionAssignments.get(player.id) || player.mainPosition,
-      benchTeam: teamColors[i % teamColors.length],
+      role: positionAssignments.get(sub.player.id) || sub.player.mainPosition,
+      benchTeam: sub.benchTeam,
     });
   }
 
   // Calculate team metrics
   const teamMetrics: TeamMetrics[] = [];
 
-  for (const color of [...teamColors, 'SUB' as TeamColor]) {
+  for (const color of teamColors) {
     const teamAssignments = assignments.filter(a => a.team === color);
     if (teamAssignments.length === 0) continue;
 
@@ -497,9 +639,10 @@ export function solveTeams(players: Player[]): SolveResult {
 
     teamAssignments.forEach(a => positions[a.role]++);
 
-    const hasGK = positions.GK > 0;
-    if (!hasGK && color !== 'SUB') {
-      warnings.push(`Team ${color} is missing a goalkeeper.`);
+    const hasGK = positions.GK > 0 || teamPlayers.some(p => canPlayPosition(p, 'GK'));
+
+    if (!hasGK && teamPlayers.length >= 4) {
+      warnings.push(`Team ${color} is missing a dedicated goalkeeper.`);
     }
 
     teamMetrics.push({
@@ -514,16 +657,61 @@ export function solveTeams(players: Player[]): SolveResult {
     });
   }
 
+  // Add sub metrics if any
+  if (optimizedState.subs.length > 0) {
+    const subPlayers = optimizedState.subs.map(s => s.player);
+    const skillSum = subPlayers.reduce((s, p) => s + p.rating, 0);
+    const ageSum = subPlayers.reduce((s, p) => s + p.age, 0);
+    const positions: Record<Position, number> = { GK: 0, DF: 0, MID: 0, ST: 0 };
+    subPlayers.forEach(p => positions[p.mainPosition]++);
+
+    teamMetrics.push({
+      team: 'SUB',
+      playerCount: subPlayers.length,
+      skillSum,
+      skillAvg: Math.round((skillSum / subPlayers.length) * 100) / 100,
+      ageSum,
+      ageAvg: Math.round((ageSum / subPlayers.length) * 100) / 100,
+      hasGoalkeeper: false,
+      positions,
+    });
+  }
+
   const solveTimeMs = performance.now() - startTime;
+
+  // Generate summary message
+  const teamSummary = teamColors
+    .map(c => `${c}: ${optimizedState.teams.get(c)?.length || 0}`)
+    .join(', ');
+  const subSummary = optimizedState.subs.length > 0
+    ? `, Subs: ${optimizedState.subs.length}`
+    : '';
 
   return {
     success: true,
-    message: `Teams generated successfully (${Math.round(solveTimeMs)}ms)`,
+    message: `Teams generated (${teamSummary}${subSummary}) in ${Math.round(solveTimeMs)}ms`,
     assignments,
     teamMetrics,
     warnings,
     solveTimeMs,
   };
+}
+
+/**
+ * Normalize position string to valid Position type
+ */
+function normalizePosition(pos: string | null | undefined): Position | null {
+  if (!pos) return null;
+  const upper = pos.toUpperCase().trim();
+  if (['GK', 'DF', 'MID', 'ST'].includes(upper)) {
+    return upper as Position;
+  }
+  // Handle common variations
+  if (upper === 'GOALKEEPER' || upper === 'GOALIE') return 'GK';
+  if (upper === 'DEFENDER' || upper === 'DEF' || upper === 'CB' || upper === 'LB' || upper === 'RB') return 'DF';
+  if (upper === 'MIDFIELDER' || upper === 'CM' || upper === 'CDM' || upper === 'CAM' || upper === 'LM' || upper === 'RM') return 'MID';
+  if (upper === 'STRIKER' || upper === 'FORWARD' || upper === 'FW' || upper === 'CF' || upper === 'LW' || upper === 'RW') return 'ST';
+  return 'MID'; // Default fallback
 }
 
 /**
@@ -542,8 +730,8 @@ export function parsePlayersFromAPI(playersData: Array<{
     name: p.name,
     age: p.age,
     rating: Math.max(1, Math.min(5, p.rating)),
-    mainPosition: p.main_position as Position,
-    altPosition: p.alt_position as Position | null,
+    mainPosition: normalizePosition(p.main_position) || 'MID',
+    altPosition: normalizePosition(p.alt_position),
   }));
 }
 

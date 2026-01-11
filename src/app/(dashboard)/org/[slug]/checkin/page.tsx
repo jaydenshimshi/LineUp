@@ -4,7 +4,7 @@
  */
 
 import { redirect } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { CheckinClient } from './checkin-client';
 import type { Metadata } from 'next';
 
@@ -31,8 +31,11 @@ export default async function CheckinPage({ params }: PageProps) {
     redirect('/login');
   }
 
+  // Use admin client to bypass RLS
+  const adminSupabase = createAdminClient();
+
   // Get organization
-  const { data: org } = await supabase
+  const { data: org } = await adminSupabase
     .from('organizations')
     .select('id, name, slug')
     .eq('slug', slug)
@@ -45,7 +48,7 @@ export default async function CheckinPage({ params }: PageProps) {
   const orgData = org as { id: string; name: string; slug: string };
 
   // Get player profile for this org
-  const { data: player } = await supabase
+  const { data: player } = await adminSupabase
     .from('players')
     .select('id, full_name, profile_completed')
     .eq('user_id', user.id)
@@ -71,7 +74,7 @@ export default async function CheckinPage({ params }: PageProps) {
   const startDate = today.toISOString().split('T')[0];
   const endDate = twoWeeksLater.toISOString().split('T')[0];
 
-  const { data: checkins } = await supabase
+  const { data: checkins } = await adminSupabase
     .from('checkins')
     .select('date, status')
     .eq('player_id', playerData.id)
@@ -80,7 +83,7 @@ export default async function CheckinPage({ params }: PageProps) {
     .lte('date', endDate);
 
   // Get check-in counts for each day
-  const { data: allCheckins } = await supabase
+  const { data: allCheckins } = await adminSupabase
     .from('checkins')
     .select('date')
     .eq('organization_id', orgData.id)
@@ -99,6 +102,40 @@ export default async function CheckinPage({ params }: PageProps) {
     checkinMap[c.date] = c.status as 'checked_in' | 'checked_out';
   });
 
+  // Get active announcements for this org
+  const now = new Date().toISOString();
+  const { data: announcementsData } = await adminSupabase
+    .from('announcements')
+    .select('id, title, body, urgency, scope_type, scope_date')
+    .eq('organization_id', orgData.id)
+    .lte('visible_from', now)
+    .or(`visible_until.is.null,visible_until.gte.${now}`)
+    .order('urgency', { ascending: false })
+    .order('created_at', { ascending: false })
+    .limit(5);
+
+  // Transform body to message for client compatibility
+  interface DbAnnouncement {
+    id: string;
+    title: string;
+    body: string;
+    urgency: 'info' | 'important';
+    scope_type: 'global' | 'date_specific';
+    scope_date: string | null;
+  }
+
+  const announcements = (announcementsData || []).map((a) => {
+    const dbRow = a as DbAnnouncement;
+    return {
+      id: dbRow.id,
+      title: dbRow.title,
+      message: dbRow.body,
+      urgency: dbRow.urgency,
+      scope_type: dbRow.scope_type === 'date_specific' ? 'date' as const : 'global' as const,
+      scope_date: dbRow.scope_date,
+    };
+  });
+
   return (
     <CheckinClient
       orgId={orgData.id}
@@ -107,6 +144,7 @@ export default async function CheckinPage({ params }: PageProps) {
       playerName={playerData.full_name}
       initialCheckins={checkinMap}
       checkinCounts={countsByDate}
+      announcements={announcements}
     />
   );
 }

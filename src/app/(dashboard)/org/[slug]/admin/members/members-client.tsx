@@ -53,7 +53,7 @@ interface Member {
   users: {
     id: string;
     email: string;
-  };
+  } | null;
   players: {
     id: string;
     full_name: string;
@@ -107,7 +107,7 @@ export function MembersClient({
       const response = await fetch(`/api/organizations/${orgId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ generate_join_code: true }),
+        body: JSON.stringify({ generateJoinCode: true }),
       });
 
       if (response.ok) {
@@ -131,12 +131,12 @@ export function MembersClient({
     }
   };
 
-  const handleChangeRole = async (memberId: string, newRole: 'member' | 'admin' | 'owner') => {
+  const handleChangeRole = async (userId: string, newRole: 'member' | 'admin' | 'owner') => {
     try {
       const response = await fetch(`/api/organizations/${orgId}/members`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ membership_id: memberId, role: newRole }),
+        body: JSON.stringify({ userId, newRole }),
       });
 
       if (response.ok) {
@@ -156,10 +156,8 @@ export function MembersClient({
 
     setIsRemoving(true);
     try {
-      const response = await fetch(`/api/organizations/${orgId}/members`, {
+      const response = await fetch(`/api/organizations/${orgId}/members?userId=${memberToRemove.user_id}`, {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ membership_id: memberToRemove.id }),
       });
 
       if (response.ok) {
@@ -262,6 +260,23 @@ export function MembersClient({
           </CardContent>
         </Card>
 
+        {/* Quick Tips */}
+        <Card className="mb-6 bg-blue-50 border-blue-200 dark:bg-blue-950/30 dark:border-blue-800">
+          <CardContent className="py-4">
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 rounded-full bg-blue-200 dark:bg-blue-800 flex items-center justify-center text-sm">
+                💡
+              </div>
+              <div className="text-sm">
+                <p className="font-medium text-blue-900 dark:text-blue-100">Managing Members</p>
+                <p className="text-blue-700 dark:text-blue-300 mt-1">
+                  Click the <span className="font-mono bg-blue-100 dark:bg-blue-900 px-1 rounded">⋮</span> menu next to any member to promote them to Admin, demote them, or remove them from the group.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Members List */}
         <div className="space-y-6">
           {/* Owners */}
@@ -276,9 +291,10 @@ export function MembersClient({
                     key={member.id}
                     member={member}
                     isCurrentUser={member.user_id === currentUserId}
-                    canManage={false}
-                    onChangeRole={() => {}}
-                    onRemove={() => {}}
+                    canManage={isOwner && member.user_id !== currentUserId}
+                    isOwner={isOwner}
+                    onChangeRole={(role) => handleChangeRole(member.user_id, role)}
+                    onRemove={() => setMemberToRemove(member)}
                   />
                 ))}
               </div>
@@ -297,8 +313,9 @@ export function MembersClient({
                     key={member.id}
                     member={member}
                     isCurrentUser={member.user_id === currentUserId}
-                    canManage={isOwner && member.user_id !== currentUserId}
-                    onChangeRole={(role) => handleChangeRole(member.id, role)}
+                    canManage={member.user_id !== currentUserId}
+                    isOwner={isOwner}
+                    onChangeRole={(role) => handleChangeRole(member.user_id, role)}
                     onRemove={() => setMemberToRemove(member)}
                   />
                 ))}
@@ -319,7 +336,8 @@ export function MembersClient({
                     member={member}
                     isCurrentUser={member.user_id === currentUserId}
                     canManage={member.user_id !== currentUserId}
-                    onChangeRole={(role) => handleChangeRole(member.id, role)}
+                    isOwner={isOwner}
+                    onChangeRole={(role) => handleChangeRole(member.user_id, role)}
                     onRemove={() => setMemberToRemove(member)}
                   />
                 ))}
@@ -411,16 +429,18 @@ function MemberCard({
   member,
   isCurrentUser,
   canManage,
+  isOwner,
   onChangeRole,
   onRemove,
 }: {
   member: Member;
   isCurrentUser: boolean;
   canManage: boolean;
+  isOwner: boolean;
   onChangeRole: (role: 'member' | 'admin' | 'owner') => void;
   onRemove: () => void;
 }) {
-  const displayName = member.players?.full_name || member.users.email.split('@')[0];
+  const displayName = member.players?.full_name || member.users?.email?.split('@')[0] || 'Unknown';
   const hasProfile = member.players?.profile_completed;
 
   return (
@@ -440,7 +460,7 @@ function MemberCard({
               )}
             </div>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <span>{member.users.email}</span>
+              <span>{member.users?.email || 'No email'}</span>
               {!hasProfile && (
                 <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
                   No profile
@@ -465,22 +485,41 @@ function MemberCard({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                {member.role !== 'admin' && (
-                  <DropdownMenuItem onClick={() => onChangeRole('admin')}>
-                    Make Admin
+                {/* Promote to Owner - only owners can do this */}
+                {isOwner && member.role !== 'owner' && (
+                  <DropdownMenuItem onClick={() => onChangeRole('owner')}>
+                    <span className="mr-2">👑</span> Promote to Owner
                   </DropdownMenuItem>
                 )}
-                {member.role !== 'member' && (
-                  <DropdownMenuItem onClick={() => onChangeRole('member')}>
-                    Make Member
+                {/* Make Admin - for regular members */}
+                {member.role === 'member' && (
+                  <DropdownMenuItem onClick={() => onChangeRole('admin')}>
+                    <span className="mr-2">🔑</span> Make Admin
                   </DropdownMenuItem>
+                )}
+                {/* Demote Admin - for admins */}
+                {member.role === 'admin' && (
+                  <DropdownMenuItem onClick={() => onChangeRole('member')}>
+                    <span className="mr-2">👤</span> Remove Admin
+                  </DropdownMenuItem>
+                )}
+                {/* Demote Owner - only owners can demote other owners */}
+                {isOwner && member.role === 'owner' && (
+                  <>
+                    <DropdownMenuItem onClick={() => onChangeRole('admin')}>
+                      <span className="mr-2">🔑</span> Demote to Admin
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => onChangeRole('member')}>
+                      <span className="mr-2">👤</span> Demote to Member
+                    </DropdownMenuItem>
+                  </>
                 )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={onRemove}
                   className="text-destructive focus:text-destructive"
                 >
-                  Remove
+                  Remove from Group
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
