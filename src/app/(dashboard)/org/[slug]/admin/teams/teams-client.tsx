@@ -60,6 +60,7 @@ interface TeamAssignment {
   team_color: string;
   assigned_role: string | null;
   player_id: string;
+  bench_team: string | null;
   players: {
     id: string;
     full_name: string;
@@ -455,10 +456,27 @@ export function TeamsClient({
         (a) => a.player_id !== activePlayerId
       );
 
-      // Add to target with updated team_color
+      // Determine bench_team for subs
+      let benchTeam: string | null = null;
+      if (targetTeam === 'sub') {
+        // If moving to sub, assign bench based on source team or default to red
+        if (sourceTeam !== 'sub' && sourceTeam !== 'yellow') {
+          benchTeam = sourceTeam; // Use their previous team as bench
+        } else if (sourceTeam === 'yellow') {
+          benchTeam = 'yellow';
+        } else {
+          benchTeam = 'red'; // Default to red bench
+        }
+      }
+
+      // Add to target with updated team_color and bench_team
       newTeams[targetTeam] = [
         ...newTeams[targetTeam],
-        { ...playerToMove, team_color: targetTeam },
+        {
+          ...playerToMove,
+          team_color: targetTeam,
+          bench_team: benchTeam,
+        },
       ];
 
       return newTeams;
@@ -472,12 +490,13 @@ export function TeamsClient({
 
     setIsSaving(true);
     try {
-      // Collect all assignments with their new team colors
+      // Collect all assignments with their new team colors and bench teams
       const assignments = Object.entries(localTeams).flatMap(
         ([color, players]) =>
           players.map((p) => ({
             playerId: p.player_id,
             teamColor: color as TeamColor,
+            benchTeam: p.bench_team,
           }))
       );
 
@@ -836,14 +855,86 @@ export function TeamsClient({
                 )}
               </div>
 
-              {/* Subs - only show if there are subs */}
+              {/* Subs - grouped by bench team */}
               {localTeams.sub.length > 0 && (
-                <TeamDropZone
-                  color="sub"
-                  assignments={localTeams.sub}
-                  isLocked={!!isLocked}
-                  isOver={false}
-                />
+                <Card className="bg-gray-50 dark:bg-gray-900/30 border-2 border-gray-300 dark:border-gray-700">
+                  <div className="bg-gray-100 dark:bg-gray-800 px-4 py-3 flex items-center justify-between">
+                    <h3 className="text-gray-700 dark:text-gray-400 font-bold text-lg">
+                      Substitutes
+                    </h3>
+                    <Badge className="bg-gray-500 text-white">
+                      {localTeams.sub.length} players
+                    </Badge>
+                  </div>
+                  <CardContent className="pt-4">
+                    <div className="space-y-4">
+                      {/* Group subs by bench_team */}
+                      {(['red', 'blue', 'yellow'] as const)
+                        .map((benchColor) => {
+                          const benchSubs = localTeams.sub.filter(
+                            (s) => s.bench_team === benchColor
+                          );
+                          if (benchSubs.length === 0) return null;
+
+                          const colors = teamColors[benchColor];
+                          return (
+                            <div key={benchColor} className="space-y-2">
+                              <div className={cn('text-sm font-medium flex items-center gap-2', colors.text)}>
+                                <span className={cn('w-3 h-3 rounded-full', colors.badge)} />
+                                <span className="capitalize">{benchColor} Bench</span>
+                                <span className="text-xs text-muted-foreground">
+                                  ({benchSubs.length})
+                                </span>
+                              </div>
+                              <SortableContext
+                                items={benchSubs.map((a) => a.player_id)}
+                                strategy={verticalListSortingStrategy}
+                              >
+                                <div className="space-y-2 pl-5">
+                                  {benchSubs.map((assignment) => (
+                                    <DraggablePlayerCard
+                                      key={assignment.id}
+                                      assignment={assignment}
+                                      teamColor="sub"
+                                      isLocked={!!isLocked}
+                                    />
+                                  ))}
+                                </div>
+                              </SortableContext>
+                            </div>
+                          );
+                        })
+                        .filter(Boolean)}
+                      {/* Fallback for subs without bench_team (legacy data) */}
+                      {localTeams.sub.filter((s) => !s.bench_team).length > 0 && (
+                        <div className="space-y-2">
+                          <div className="text-sm font-medium text-muted-foreground">
+                            Unassigned
+                          </div>
+                          <SortableContext
+                            items={localTeams.sub
+                              .filter((s) => !s.bench_team)
+                              .map((a) => a.player_id)}
+                            strategy={verticalListSortingStrategy}
+                          >
+                            <div className="space-y-2 pl-5">
+                              {localTeams.sub
+                                .filter((s) => !s.bench_team)
+                                .map((assignment) => (
+                                  <DraggablePlayerCard
+                                    key={assignment.id}
+                                    assignment={assignment}
+                                    teamColor="sub"
+                                    isLocked={!!isLocked}
+                                  />
+                                ))}
+                            </div>
+                          </SortableContext>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
               )}
 
               {/* Balance Stats */}

@@ -8,6 +8,7 @@ interface RouteParams {
 interface AssignmentUpdate {
   playerId: string;
   teamColor: 'red' | 'blue' | 'yellow' | 'sub';
+  benchTeam?: string | null;
 }
 
 export async function PUT(request: NextRequest, { params }: RouteParams) {
@@ -66,7 +67,10 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     for (const assignment of assignments) {
       await supabase
         .from('team_assignments')
-        .update({ team_color: assignment.teamColor } as never)
+        .update({
+          team_color: assignment.teamColor,
+          bench_team: assignment.benchTeam || null,
+        } as never)
         .eq('team_run_id', teamRunId)
         .eq('player_id', assignment.playerId);
     }

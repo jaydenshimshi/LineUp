@@ -128,6 +128,7 @@ export default async function AdminTeamsPage({ params }: PageProps) {
         team_color,
         assigned_role,
         player_id,
+        bench_team,
         players (
           id,
           full_name,
@@ -145,6 +146,7 @@ export default async function AdminTeamsPage({ params }: PageProps) {
     team_color: string;
     assigned_role: string | null;
     player_id: string;
+    bench_team: string | null;
     players: {
       id: string;
       full_name: string;

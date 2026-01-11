@@ -151,7 +151,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
-    // Get checked-in players for the date with ratings (filtered by organization)
+    // Get checked-in players for the date (filtered by organization)
     const { data: checkinsData, error: checkinsError } = await supabase
       .from('checkins')
       .select(`
@@ -162,13 +162,25 @@ export async function POST(request: NextRequest) {
           age,
           main_position,
           alt_position,
-          organization_id,
-          player_admin_ratings(rating_stars)
+          organization_id
         )
       `)
       .eq('date', date)
       .eq('status', 'checked_in')
       .eq('organization_id', organization_id);
+
+    // Get ratings separately with organization filter
+    const playerIds = (checkinsData || []).map((c: { player_id: string }) => c.player_id);
+    const { data: ratingsData } = await supabase
+      .from('player_admin_ratings')
+      .select('player_id, rating_stars')
+      .eq('organization_id', organization_id)
+      .in('player_id', playerIds.length > 0 ? playerIds : ['none']);
+
+    const ratingsMap: Record<string, number> = {};
+    (ratingsData || []).forEach((r: { player_id: string; rating_stars: number }) => {
+      ratingsMap[r.player_id] = r.rating_stars;
+    });
 
     if (checkinsError) {
       console.error('Error fetching check-ins:', checkinsError);
@@ -184,7 +196,6 @@ export async function POST(request: NextRequest) {
         main_position: string;
         alt_position: string | null;
         organization_id: string;
-        player_admin_ratings: Array<{ rating_stars: number }> | null;
       };
     }
 
@@ -197,12 +208,12 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Format players for solver
+    // Format players for solver - use ratingsMap for correct org-specific ratings
     const playersData: PlayerData[] = checkins.map((c) => ({
       player_id: c.players.id,
       name: c.players.full_name,
       age: c.players.age,
-      rating: c.players.player_admin_ratings?.[0]?.rating_stars || 3,
+      rating: ratingsMap[c.player_id] || 3,
       main_position: c.players.main_position,
       alt_position: c.players.alt_position,
     }));
@@ -335,12 +346,13 @@ export async function POST(request: NextRequest) {
         teamRunId = (newRun as { id: string }).id;
       }
 
-      // Insert new assignments (bench_team excluded as column may not exist)
+      // Insert new assignments with bench_team for subs
       const assignmentsToInsert = solverResult.assignments.map((a) => ({
         team_run_id: teamRunId,
         player_id: a.playerId,
         team_color: a.team.toLowerCase(),
         assigned_role: a.role,
+        bench_team: a.benchTeam ? a.benchTeam.toLowerCase() : null,
       }));
 
       const { error: assignError } = await adminSupabase
