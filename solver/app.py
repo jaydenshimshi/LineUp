@@ -22,8 +22,8 @@ def health():
     return jsonify({
         'status': 'healthy',
         'service': 'lineup-solver',
-        'version': '2.0.0',
-        'engine': 'Google OR-Tools CP-SAT'
+        'version': '4.0.0',
+        'engine': 'Multi-Strategy Position-Aware'
     })
 
 
@@ -74,6 +74,32 @@ def solve():
         return jsonify({
             'success': False,
             'message': f'Server error: {str(e)}'
+        }), 500
+
+
+@app.route('/api/debug-log', methods=['GET'])
+def debug_log():
+    """Get the solver debug log"""
+    try:
+        log_path = os.path.join(os.path.dirname(__file__), 'solver_debug.log')
+        if os.path.exists(log_path):
+            with open(log_path, 'r') as f:
+                # Get last 100 lines
+                lines = f.readlines()[-100:]
+                return jsonify({
+                    'success': True,
+                    'log': ''.join(lines),
+                    'total_lines': len(lines)
+                })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Log file not found'
+            })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
         }), 500
 
 
