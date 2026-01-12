@@ -81,9 +81,9 @@ export default async function CheckinPage() {
   }));
 
   // Get date-specific announcements for this week
-  const { data: announcementsData } = await supabase
+  const { data: announcementsData } = await (supabase
     .from('announcements')
-    .select('*')
+    .select('*') as any)
     .eq('is_active', true)
     .eq('scope_type', 'date_specific')
     .in('scope_date', weekDates)
