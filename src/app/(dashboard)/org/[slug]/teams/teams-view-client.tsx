@@ -28,6 +28,7 @@ interface TeamsViewClientProps {
   orgName: string;
   teams: Record<string, TeamAssignment[]>;
   hasTeams: boolean;
+  dateString: string;
 }
 
 const teamColors = {
@@ -64,9 +65,10 @@ const positionLabels: Record<string, string> = {
   ST: 'ST',
 };
 
-export function TeamsViewClient({ orgName, teams, hasTeams }: TeamsViewClientProps) {
+export function TeamsViewClient({ orgName, teams, hasTeams, dateString }: TeamsViewClientProps) {
   const teamsRef = useRef<HTMLDivElement>(null);
-  const today = format(new Date(), 'yyyy-MM-dd');
+  // Parse the date string to display - add time to avoid timezone issues
+  const displayDate = new Date(dateString + 'T12:00:00');
 
   return (
     <div className="min-h-screen bg-background">
@@ -75,7 +77,7 @@ export function TeamsViewClient({ orgName, teams, hasTeams }: TeamsViewClientPro
         <div className="mb-3 text-center">
           <h1 className="text-base font-semibold">Today&apos;s Teams</h1>
           <p className="text-[11px] text-muted-foreground">
-            {format(new Date(), 'EEE, MMM d')}
+            {format(displayDate, 'EEE, MMM d')}
           </p>
         </div>
 
@@ -92,7 +94,7 @@ export function TeamsViewClient({ orgName, teams, hasTeams }: TeamsViewClientPro
               </Badge>
               <ShareTeams
                 contentRef={teamsRef}
-                teamsDate={today}
+                teamsDate={dateString}
                 orgName={orgName}
               />
             </div>

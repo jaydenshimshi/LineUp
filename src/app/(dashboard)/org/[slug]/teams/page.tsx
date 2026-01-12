@@ -148,6 +148,7 @@ export default async function TeamsPage({ params }: PageProps) {
       orgName={orgData.name}
       teams={teams}
       hasTeams={!!hasTeams}
+      dateString={teamRun?.date || today}
     />
   );
 }
