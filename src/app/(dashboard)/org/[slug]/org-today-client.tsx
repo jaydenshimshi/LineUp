@@ -116,6 +116,7 @@ export function OrgTodayClient({
   }, [isCheckedIn, playerPosition]);
 
   const handleToggleCheckin = async () => {
+    const isCheckingOut = isCheckedIn;
     const newStatus = !isCheckedIn;
     const newCount = checkedInCount + (newStatus ? 1 : -1);
 
@@ -131,16 +132,27 @@ export function OrgTodayClient({
     }
 
     try {
-      const response = await fetch('/api/checkins', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          playerId,
-          date: dateString,
-          status: newStatus ? 'checked_in' : 'checked_out',
-          organizationId: orgId,
-        }),
-      });
+      let response;
+
+      if (isCheckingOut) {
+        // Check out = DELETE the record (same as check-in page)
+        response = await fetch(
+          `/api/checkins?playerId=${playerId}&date=${dateString}&organizationId=${orgId}`,
+          { method: 'DELETE' }
+        );
+      } else {
+        // Check in = POST/create the record
+        response = await fetch('/api/checkins', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            playerId,
+            date: dateString,
+            status: 'checked_in',
+            organizationId: orgId,
+          }),
+        });
+      }
 
       if (!response.ok) {
         // Revert on error
