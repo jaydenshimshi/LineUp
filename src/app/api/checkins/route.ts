@@ -4,6 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { revalidatePath } from 'next/cache';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 
 /**
@@ -139,6 +140,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    // Revalidate the check-in pages to ensure fresh data
+    revalidatePath('/org/[slug]/checkin', 'page');
+
     return NextResponse.json({ checkin: data });
   } catch (err) {
     console.error('Check-ins POST error:', err);
@@ -211,6 +215,9 @@ export async function DELETE(request: NextRequest) {
       console.error('Error deleting check-in:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
+
+    // Revalidate the check-in pages to ensure fresh data
+    revalidatePath('/org/[slug]/checkin', 'page');
 
     return NextResponse.json({ success: true });
   } catch (err) {

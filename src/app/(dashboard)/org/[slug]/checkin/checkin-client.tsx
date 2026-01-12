@@ -5,7 +5,7 @@
  * Beautiful calendar UI for marking availability with real-time updates
  */
 
-import { useState, useTransition, useMemo } from 'react';
+import { useState, useTransition, useMemo, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { format, addDays, isSameDay, isToday, isPast, setHours, setMinutes } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -74,6 +74,36 @@ export function CheckinClient({
 
   const today = new Date();
 
+  // Sync local state when initialCheckins prop changes (e.g., after navigation)
+  useEffect(() => {
+    setCheckins(initialCheckins);
+  }, [initialCheckins]);
+
+  // Refetch checkins when component mounts or window regains focus
+  const refetchCheckins = useCallback(async () => {
+    try {
+      const startDate = format(today, 'yyyy-MM-dd');
+      const endDate = format(addDays(today, 13), 'yyyy-MM-dd');
+
+      const response = await fetch(
+        `/api/checkins/player?playerId=${playerId}&organizationId=${orgId}&startDate=${startDate}&endDate=${endDate}`
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.checkins) {
+          const checkinMap: Record<string, 'checked_in' | 'checked_out'> = {};
+          data.checkins.forEach((c: { date: string; status: string }) => {
+            checkinMap[c.date] = c.status as 'checked_in' | 'checked_out';
+          });
+          setCheckins(checkinMap);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to refetch checkins:', error);
+    }
+  }, [playerId, orgId, today]);
+
   // Game cutoff time - games are in the morning, so after 10 AM check-ins are for next day
   const GAME_CUTOFF_HOUR = 10;
 
@@ -115,6 +145,17 @@ export function CheckinClient({
     dates: dateStrings,
     initialCounts: initialCounts,
   });
+
+  // Refetch on window focus (when user returns to the tab/app)
+  useEffect(() => {
+    const handleFocus = () => {
+      refetchCheckins();
+      refetchCounts();
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [refetchCheckins, refetchCounts]);
 
   // Split into weeks
   const thisWeek = days.slice(0, 7);
