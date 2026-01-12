@@ -58,11 +58,12 @@ export function LoginForm() {
       // Check if there's a pending join code from QR scan
       const pendingJoinCode = localStorage.getItem('pendingJoinCode');
       if (pendingJoinCode) {
-        router.push('/organizations');
+        // Use window.location for more reliable redirect with pending join code
+        window.location.href = '/organizations';
       } else {
         router.push('/');
+        router.refresh();
       }
-      router.refresh();
     } catch (err) {
       setError('An unexpected error occurred. Please try again.');
       console.error('Login error:', err);

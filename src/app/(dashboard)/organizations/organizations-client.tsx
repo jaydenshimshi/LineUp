@@ -72,24 +72,71 @@ export function OrganizationsClient({ memberships }: OrganizationsClientProps) {
   const [isJoining, setIsJoining] = useState(false);
   const [joinDialogOpen, setJoinDialogOpen] = useState(false);
 
-  // Handle QR code scan - auto-open dialog with code from URL or localStorage
+  // Handle QR code scan - auto-join with code from URL or localStorage
   useEffect(() => {
     const codeFromUrl = searchParams.get('join');
     const storedCode = localStorage.getItem('pendingJoinCode');
+    const joinCodeToUse = codeFromUrl || storedCode;
 
-    if (codeFromUrl) {
-      setJoinCode(codeFromUrl.toUpperCase());
-      setJoinDialogOpen(true);
-      // Clean up URL and localStorage
-      window.history.replaceState({}, '', '/organizations');
+    if (joinCodeToUse) {
+      // Clean up URL and localStorage immediately
+      if (codeFromUrl) {
+        window.history.replaceState({}, '', '/organizations');
+      }
       localStorage.removeItem('pendingJoinCode');
-    } else if (storedCode) {
-      // User just signed up/logged in with a pending join code
-      setJoinCode(storedCode.toUpperCase());
-      setJoinDialogOpen(true);
-      localStorage.removeItem('pendingJoinCode');
+
+      // Auto-join the group
+      autoJoinGroup(joinCodeToUse.toUpperCase());
     }
   }, [searchParams]);
+
+  // Auto-join function that runs automatically
+  const autoJoinGroup = async (code: string) => {
+    setIsJoining(true);
+    setJoinError(null);
+
+    try {
+      const response = await fetch('/api/organizations/join', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        // If already a member, just redirect to the org
+        if (data.error?.includes('already a member')) {
+          // Find the org they're already a member of and redirect
+          const existingOrg = memberships.find(m =>
+            m.organizations && data.error?.includes(m.organizations.name)
+          );
+          if (existingOrg) {
+            router.push(`/org/${existingOrg.organizations.slug}`);
+          } else {
+            setJoinError(data.error);
+            setJoinCode(code);
+            setJoinDialogOpen(true);
+          }
+          return;
+        }
+        setJoinError(data.error || 'Failed to join group');
+        setJoinCode(code);
+        setJoinDialogOpen(true);
+        return;
+      }
+
+      // Success - redirect to the organization
+      router.push(`/org/${data.organization.slug}`);
+      router.refresh();
+    } catch {
+      setJoinError('Something went wrong. Please try again.');
+      setJoinCode(code);
+      setJoinDialogOpen(true);
+    } finally {
+      setIsJoining(false);
+    }
+  };
 
   const handleJoinGroup = async () => {
     if (!joinCode.trim()) {
@@ -123,6 +170,21 @@ export function OrganizationsClient({ memberships }: OrganizationsClientProps) {
       setIsJoining(false);
     }
   };
+
+  // Show loading screen while auto-joining
+  if (isJoining && !joinDialogOpen) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-primary/5 via-background to-background">
+        <div className="text-center">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-primary/10 flex items-center justify-center animate-pulse">
+            <span className="text-3xl">⚽</span>
+          </div>
+          <h2 className="text-xl font-semibold mb-2">Joining group...</h2>
+          <p className="text-muted-foreground">Please wait a moment</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-primary/5 via-background to-background">
