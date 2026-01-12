@@ -174,6 +174,7 @@ export function PlayersClient({ orgId, players, todayCheckins = [], sessionDate:
   const [newPlayerName, setNewPlayerName] = useState('');
   const [newPlayerAge, setNewPlayerAge] = useState('');
   const [newPlayerPosition, setNewPlayerPosition] = useState('');
+  const [newPlayerAltPosition, setNewPlayerAltPosition] = useState('');
   const [newPlayerRating, setNewPlayerRating] = useState<number>(3);
   const [isAddingPlayer, setIsAddingPlayer] = useState(false);
 
@@ -182,6 +183,7 @@ export function PlayersClient({ orgId, players, todayCheckins = [], sessionDate:
   const [editName, setEditName] = useState('');
   const [editAge, setEditAge] = useState('');
   const [editPosition, setEditPosition] = useState('');
+  const [editAltPosition, setEditAltPosition] = useState('');
   const [isEditing, setIsEditing] = useState(false);
 
   // Calculate session date on mount
@@ -289,6 +291,7 @@ export function PlayersClient({ orgId, players, todayCheckins = [], sessionDate:
           full_name: newPlayerName.trim(),
           age: parseInt(newPlayerAge),
           main_position: newPlayerPosition,
+          alt_position: newPlayerAltPosition || null,
           rating_stars: newPlayerRating,
         }),
       });
@@ -299,6 +302,7 @@ export function PlayersClient({ orgId, players, todayCheckins = [], sessionDate:
         setNewPlayerName('');
         setNewPlayerAge('');
         setNewPlayerPosition('');
+        setNewPlayerAltPosition('');
         setNewPlayerRating(3);
         router.refresh();
       } else {
@@ -318,6 +322,7 @@ export function PlayersClient({ orgId, players, todayCheckins = [], sessionDate:
     setEditName(player.full_name);
     setEditAge(player.age.toString());
     setEditPosition(player.main_position);
+    setEditAltPosition(player.alt_position || '');
   };
 
   const handleSaveEdit = async () => {
@@ -337,6 +342,7 @@ export function PlayersClient({ orgId, players, todayCheckins = [], sessionDate:
           full_name: editName.trim(),
           age: parseInt(editAge),
           main_position: editPosition,
+          alt_position: editAltPosition || null,
         }),
       });
 
@@ -436,17 +442,31 @@ export function PlayersClient({ orgId, players, todayCheckins = [], sessionDate:
                   </select>
                 </div>
                 <div>
-                  <Label className="text-xs">Rating</Label>
+                  <Label className="text-xs">Alt Position</Label>
                   <select
-                    value={newPlayerRating}
-                    onChange={(e) => setNewPlayerRating(parseInt(e.target.value))}
-                    className="w-full h-8 border rounded-md px-2 text-sm"
+                    value={newPlayerAltPosition}
+                    onChange={(e) => setNewPlayerAltPosition(e.target.value)}
+                    className="w-full h-8 border rounded-md px-2 text-sm text-muted-foreground"
                   >
-                    {[1, 2, 3, 4, 5].map((r) => (
-                      <option key={r} value={r}>{'★'.repeat(r)} {ratingLabels[r]}</option>
-                    ))}
+                    <option value="">None</option>
+                    <option value="GK">🧤 Goalkeeper</option>
+                    <option value="DF">🛡️ Defender</option>
+                    <option value="MID">⚙️ Midfielder</option>
+                    <option value="ST">⚡ Striker</option>
                   </select>
                 </div>
+              </div>
+              <div>
+                <Label className="text-xs">Rating</Label>
+                <select
+                  value={newPlayerRating}
+                  onChange={(e) => setNewPlayerRating(parseInt(e.target.value))}
+                  className="w-full h-8 border rounded-md px-2 text-sm"
+                >
+                  {[1, 2, 3, 4, 5].map((r) => (
+                    <option key={r} value={r}>{'★'.repeat(r)} {ratingLabels[r]}</option>
+                  ))}
+                </select>
               </div>
               <Button
                 onClick={handleAddPlayer}
@@ -530,18 +550,31 @@ export function PlayersClient({ orgId, players, todayCheckins = [], sessionDate:
                                 className="h-8 text-sm"
                               />
                             </div>
-                            <div className="flex gap-2">
+                            <div className="grid grid-cols-2 gap-2">
                               <select
                                 value={editPosition}
                                 onChange={(e) => setEditPosition(e.target.value)}
-                                className="flex-1 h-8 border rounded-md px-2 text-sm"
+                                className="h-8 border rounded-md px-2 text-sm"
                               >
                                 <option value="GK">🧤 GK</option>
                                 <option value="DF">🛡️ DF</option>
                                 <option value="MID">⚙️ MID</option>
                                 <option value="ST">⚡ ST</option>
                               </select>
-                              <Button size="sm" onClick={handleSaveEdit} disabled={isEditing} className="h-8">
+                              <select
+                                value={editAltPosition}
+                                onChange={(e) => setEditAltPosition(e.target.value)}
+                                className="h-8 border rounded-md px-2 text-sm text-muted-foreground"
+                              >
+                                <option value="">No alt position</option>
+                                <option value="GK">🧤 Alt: GK</option>
+                                <option value="DF">🛡️ Alt: DF</option>
+                                <option value="MID">⚙️ Alt: MID</option>
+                                <option value="ST">⚡ Alt: ST</option>
+                              </select>
+                            </div>
+                            <div className="flex gap-2">
+                              <Button size="sm" onClick={handleSaveEdit} disabled={isEditing} className="h-8 flex-1">
                                 {isEditing ? '...' : 'Save'}
                               </Button>
                               <Button size="sm" variant="outline" onClick={() => setEditingPlayerId(null)} className="h-8">

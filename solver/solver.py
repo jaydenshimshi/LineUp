@@ -587,22 +587,26 @@ def solve_teams(
         for player in team:
             assigned_roles[player.player_id] = player.main_pos
 
-        # Second pass: handle excess GKs first - reassign extra GKs to their alt position
-        while pos_counts[Position.GK] > 1:
-            reassigned = False
-            for player in team:
-                if assigned_roles[player.player_id] == Position.GK and player.alt_pos:
-                    # Reassign this GK to their alternate position
-                    assigned_roles[player.player_id] = player.alt_pos
-                    pos_counts[Position.GK] -= 1
-                    pos_counts[player.alt_pos] += 1
-                    reassigned = True
-                    break
-            if not reassigned:
-                break  # No more GKs with alt positions
+        # Second pass: handle excess positions - reassign extras to their alt position
+        # GK should have max 1, field positions (DF, MID, ST) can have more but we'll try to balance
+        max_per_position = {Position.GK: 1, Position.DF: 3, Position.MID: 3, Position.ST: 3}
 
-        # Third pass: use alt positions to fill gaps for field positions
-        for pos in [Position.DF, Position.MID, Position.ST]:
+        for pos in [Position.GK, Position.DF, Position.MID, Position.ST]:
+            while pos_counts[pos] > max_per_position[pos]:
+                reassigned = False
+                for player in team:
+                    if assigned_roles[player.player_id] == pos and player.alt_pos and player.alt_pos != pos:
+                        # Reassign this player to their alternate position
+                        assigned_roles[player.player_id] = player.alt_pos
+                        pos_counts[pos] -= 1
+                        pos_counts[player.alt_pos] += 1
+                        reassigned = True
+                        break
+                if not reassigned:
+                    break  # No more players with alt positions
+
+        # Third pass: use alt positions to fill gaps for any missing positions
+        for pos in [Position.GK, Position.DF, Position.MID, Position.ST]:
             if pos_counts[pos] == 0:
                 # Try to find someone with this as alt who is in an overcrowded position
                 for player in team:
