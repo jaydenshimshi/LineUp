@@ -1,11 +1,12 @@
 /**
  * Admin Teams Generation Page
  * Generate and manage balanced teams
+ * Uses session date (6 AM cutoff) for team generation
  */
 
 import { redirect } from 'next/navigation';
-import { format } from 'date-fns';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
+import { getSessionDate } from '@/lib/session-date';
 import { TeamsClient } from './teams-client';
 import type { Metadata } from 'next';
 
@@ -23,7 +24,9 @@ interface PageProps {
 export default async function AdminTeamsPage({ params }: PageProps) {
   const { slug } = await params;
   const supabase = await createClient();
-  const today = format(new Date(), 'yyyy-MM-dd');
+
+  // Use session date (6 AM cutoff) so teams are generated for the correct day
+  const { sessionDateString } = getSessionDate();
 
   const {
     data: { user },
@@ -76,7 +79,7 @@ export default async function AdminTeamsPage({ params }: PageProps) {
       )
     `)
     .eq('organization_id', orgData.id)
-    .eq('date', today)
+    .eq('date', sessionDateString)
     .eq('status', 'checked_in');
 
   interface CheckinWithPlayer {
@@ -138,7 +141,7 @@ export default async function AdminTeamsPage({ params }: PageProps) {
       )
     `)
     .eq('organization_id', orgData.id)
-    .eq('date', today)
+    .eq('date', sessionDateString)
     .single();
 
   interface TeamAssignment {
@@ -175,7 +178,7 @@ export default async function AdminTeamsPage({ params }: PageProps) {
     <TeamsClient
       orgId={orgData.id}
       orgSlug={slug}
-      date={today}
+      date={sessionDateString}
       checkedInPlayers={checkedInPlayers}
       existingTeamRun={existingTeamRun}
       adminId={user.id}

@@ -383,16 +383,17 @@ export function TeamsClient({
   }, [existingTeamRun]);
 
   // Configure sensors for pointer, touch, and keyboard accessibility
+  // Higher delay and tolerance prevents accidental drags while scrolling
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 8, // 8px movement before drag starts
+        distance: 10, // 10px movement before drag starts
       },
     }),
     useSensor(TouchSensor, {
       activationConstraint: {
-        delay: 200, // 200ms delay for touch to distinguish from scrolling
-        tolerance: 5, // Allow 5px movement during delay
+        delay: 400, // 400ms delay - must hold before drag activates
+        tolerance: 8, // Allow 8px movement during delay without canceling
       },
     }),
     useSensor(KeyboardSensor, {

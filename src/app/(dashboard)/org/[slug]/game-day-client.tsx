@@ -1,8 +1,9 @@
 'use client';
 
 /**
- * Organization Today Client Component
- * Handles check-in toggle and status display with personalized feedback
+ * Game Day Client Component
+ * Handles check-in toggle and status display for the next game session
+ * Uses session date cutoff (6 AM) to determine which day to check into
  */
 
 import { useState, useTransition, useEffect, useCallback } from 'react';
@@ -12,9 +13,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 
-interface OrgTodayClientProps {
+interface GameDayClientProps {
   orgId: string;
-  orgSlug?: string; // Not used but kept for compatibility
   playerId: string;
   playerName: string;
   isCheckedIn: boolean;
@@ -87,7 +87,7 @@ function getPlayerStatusMessage(
   }
 }
 
-export function OrgTodayClient({
+export function GameDayClient({
   orgId,
   playerId,
   playerName,
@@ -96,7 +96,7 @@ export function OrgTodayClient({
   dateString,
   sessionLabel,
   isNextDay,
-}: OrgTodayClientProps) {
+}: GameDayClientProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [isCheckedIn, setIsCheckedIn] = useState(initialCheckedIn);
@@ -261,11 +261,9 @@ export function OrgTodayClient({
       <CardHeader className="p-3 pb-2">
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle className="text-sm font-semibold">
-              {isNextDay ? 'Tomorrow\'s Game' : 'Today\'s Game'}
-            </CardTitle>
+            <CardTitle className="text-sm font-semibold">Game Day</CardTitle>
             <p className="text-[10px] text-muted-foreground mt-0.5">
-              Checking in for {sessionLabel}
+              {sessionLabel}
             </p>
           </div>
           <Badge

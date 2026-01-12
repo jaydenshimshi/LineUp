@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { OrgTodayClient } from './org-today-client';
+import { GameDayClient } from './game-day-client';
 import type { Metadata } from 'next';
 
 export const dynamic = 'force-dynamic';
@@ -245,9 +245,8 @@ export default async function OrgHomePage({ params }: PageProps) {
           )}
 
           {/* Session Check-in Card */}
-          <OrgTodayClient
+          <GameDayClient
             orgId={orgData.id}
-            orgSlug={slug}
             playerId={playerData.id}
             playerName={playerData.full_name}
             isCheckedIn={isCheckedIn}

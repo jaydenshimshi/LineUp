@@ -3,20 +3,16 @@
 /**
  * Players Client Component
  * Beautiful UI for viewing players and managing ratings
+ * Uses session date for check-ins (6 AM cutoff)
  */
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { format, addDays } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
   Dialog,
@@ -51,10 +47,21 @@ interface Player {
 
 interface PlayersClientProps {
   orgId: string;
-  orgSlug: string;
   players: Player[];
-  todayCheckins?: string[]; // Player IDs checked in today
+  todayCheckins?: string[]; // Player IDs checked in for session
   adminId?: string; // Current admin's ID (optional)
+  sessionDate?: string; // Session date string (yyyy-MM-dd)
+}
+
+// Session date calculation (matches session-date.ts)
+const SESSION_CUTOFF_HOUR = 6;
+
+function getSessionDateString(): string {
+  const now = new Date();
+  const currentHour = now.getHours();
+  const isAfterCutoff = currentHour >= SESSION_CUTOFF_HOUR;
+  const sessionDate = isAfterCutoff ? addDays(now, 1) : now;
+  return format(sessionDate, 'yyyy-MM-dd');
 }
 
 const positionLabels: Record<string, { label: string; emoji: string; color: string }> = {
@@ -64,13 +71,23 @@ const positionLabels: Record<string, { label: string; emoji: string; color: stri
   ST: { label: 'Striker', emoji: '⚡', color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
 };
 
-export function PlayersClient({ orgId, orgSlug, players, todayCheckins = [] }: PlayersClientProps) {
+export function PlayersClient({ orgId, players, todayCheckins = [], sessionDate: initialSessionDate }: PlayersClientProps) {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   const [selectedRating, setSelectedRating] = useState<number>(3);
   const [isSaving, setIsSaving] = useState(false);
   const [filterPosition, setFilterPosition] = useState<string | null>(null);
+
+  // Session date state - use prop or calculate client-side
+  const [sessionDateStr, setSessionDateStr] = useState(initialSessionDate || '');
+
+  // Calculate session date on client mount (to match session-date.ts logic)
+  useEffect(() => {
+    if (!initialSessionDate) {
+      setSessionDateStr(getSessionDateString());
+    }
+  }, [initialSessionDate]);
 
   // Add player state
   const [showAddPlayer, setShowAddPlayer] = useState(false);
@@ -89,7 +106,7 @@ export function PlayersClient({ orgId, orgSlug, players, todayCheckins = [] }: P
   const [editAltPosition, setEditAltPosition] = useState('');
   const [isEditing, setIsEditing] = useState(false);
 
-  // Check-in state
+  // Check-in state - for session date
   const [checkedInPlayers, setCheckedInPlayers] = useState<Set<string>>(new Set(todayCheckins));
   const [checkingIn, setCheckingIn] = useState<string | null>(null);
 
@@ -111,10 +128,17 @@ export function PlayersClient({ orgId, orgSlug, players, todayCheckins = [] }: P
     groupedPlayers[pos].push(player);
   });
 
-  const handleOpenRating = (player: Player) => {
+  // Save scroll position when opening dialogs to prevent scroll-to-top
+  const handleOpenRating = useCallback((player: Player) => {
+    // Prevent scroll reset by briefly locking scroll
+    const scrollY = window.scrollY;
     setSelectedPlayer(player);
     setSelectedRating(player.rating || 3);
-  };
+    // Restore scroll position after state update
+    requestAnimationFrame(() => {
+      window.scrollTo(0, scrollY);
+    });
+  }, []);
 
   const handleAddPlayer = async () => {
     if (!newPlayerName.trim() || !newPlayerAge || !newPlayerPosition) {
@@ -157,13 +181,17 @@ export function PlayersClient({ orgId, orgSlug, players, todayCheckins = [] }: P
     }
   };
 
-  const handleOpenEdit = (player: Player) => {
+  const handleOpenEdit = useCallback((player: Player) => {
+    const scrollY = window.scrollY;
     setEditingPlayer(player);
     setEditName(player.full_name);
     setEditAge(player.age.toString());
     setEditPosition(player.main_position);
     setEditAltPosition(player.alt_position || '');
-  };
+    requestAnimationFrame(() => {
+      window.scrollTo(0, scrollY);
+    });
+  }, []);
 
   const handleEditPlayer = async () => {
     if (!editingPlayer || !editName.trim() || !editAge || !editPosition) {
@@ -224,8 +252,9 @@ export function PlayersClient({ orgId, orgSlug, players, todayCheckins = [] }: P
     }
   };
 
-  const handleToggleCheckin = async (player: Player) => {
-    const today = new Date().toISOString().split('T')[0];
+  const handleToggleCheckin = useCallback(async (player: Player) => {
+    // Use session date (6 AM cutoff) instead of today
+    const dateToUse = sessionDateStr || getSessionDateString();
     const isCheckedIn = checkedInPlayers.has(player.id);
 
     setCheckingIn(player.id);
@@ -236,7 +265,7 @@ export function PlayersClient({ orgId, orgSlug, players, todayCheckins = [] }: P
         body: JSON.stringify({
           player_id: player.id,
           organization_id: orgId,
-          date: today,
+          date: dateToUse,
         }),
       });
 
@@ -247,7 +276,7 @@ export function PlayersClient({ orgId, orgSlug, players, todayCheckins = [] }: P
           toast.success(`${player.full_name} checked out`);
         } else {
           newSet.add(player.id);
-          toast.success(`${player.full_name} checked in for today!`);
+          toast.success(`${player.full_name} checked in!`);
         }
         setCheckedInPlayers(newSet);
       } else {
@@ -259,7 +288,7 @@ export function PlayersClient({ orgId, orgSlug, players, todayCheckins = [] }: P
     } finally {
       setCheckingIn(null);
     }
-  };
+  }, [sessionDateStr, checkedInPlayers, orgId]);
 
   const handleSaveRating = async () => {
     if (!selectedPlayer) return;
@@ -765,65 +794,53 @@ function PlayerCard({
 
   return (
     <Card className={isAdminCreated ? 'border-dashed' : ''}>
-      <CardContent className="py-3">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-3 min-w-0 flex-1">
+      <CardContent className="py-2 px-3">
+        {/* Two-row layout for mobile */}
+        <div className="flex flex-col gap-2">
+          {/* Row 1: Avatar, Name, Position, Rating */}
+          <div className="flex items-center gap-2">
             <div className={cn(
-              'w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium flex-shrink-0',
+              'w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium flex-shrink-0',
               isAdminCreated ? 'bg-purple-100 dark:bg-purple-900/30' : 'bg-muted'
             )}>
               {player.full_name.split(' ').map((n) => n[0]).join('').slice(0, 2)}
             </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <p className="font-medium truncate">{player.full_name}</p>
-                {isAdminCreated && (
-                  <Badge variant="outline" className="text-[10px] h-4 px-1.5 text-purple-600 border-purple-300 dark:text-purple-400 dark:border-purple-700">
-                    Manual
-                  </Badge>
-                )}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5">
+                <p className="text-sm font-medium truncate">{player.full_name}</p>
                 {isCheckedIn && (
-                  <Badge className="text-[10px] h-4 px-1.5 bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
-                    ✓ Today
-                  </Badge>
+                  <span className="text-green-600 text-xs">✓</span>
                 )}
               </div>
-              <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
-                <span>{player.age} yrs</span>
-                <Badge className={posInfo?.color} variant="secondary">
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <span className={cn('px-1 py-0.5 rounded text-[10px]', posInfo?.color)}>
                   {posInfo?.emoji} {player.main_position}
-                </Badge>
-                {player.alt_position && (
-                  <Badge variant="outline" className="text-xs">
-                    +{player.alt_position}
-                  </Badge>
+                </span>
+                <span>{player.age}y</span>
+                {isAdminCreated && (
+                  <span className="text-purple-500 text-[10px]">Manual</span>
                 )}
               </div>
             </div>
+            {/* Rating stars - compact */}
+            <div className="flex-shrink-0">
+              {player.rating ? (
+                <span className="text-amber-500 text-xs" title={`${player.rating}/5`}>
+                  {'★'.repeat(player.rating)}{'☆'.repeat(5 - player.rating)}
+                </span>
+              ) : (
+                <span className="text-[10px] text-muted-foreground">No rating</span>
+              )}
+            </div>
           </div>
 
-          <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0 flex-wrap justify-end">
-            {/* Rating Display - visible on all screens */}
-            {player.rating ? (
-              <div className="flex items-center gap-0.5 bg-amber-50 dark:bg-amber-900/30 px-1.5 py-0.5 rounded">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <span key={i} className="text-[10px] sm:text-xs">
-                    {i < player.rating! ? '⭐' : '☆'}
-                  </span>
-                ))}
-              </div>
-            ) : (
-              <Badge variant="outline" className="text-[10px]">
-                Unrated
-              </Badge>
-            )}
-
-            {/* Check-in toggle for all players - Mobile optimized */}
+          {/* Row 2: Action buttons - compact */}
+          <div className="flex items-center gap-1.5 justify-end">
             {onToggleCheckin && (
               <Button
                 variant={isCheckedIn ? 'default' : 'outline'}
                 size="sm"
-                className="h-8 sm:h-7 text-xs px-2 touch-manipulation"
+                className="h-7 text-[11px] px-2 touch-manipulation"
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
@@ -831,29 +848,28 @@ function PlayerCard({
                 }}
                 disabled={isCheckingIn}
               >
-                {isCheckingIn ? '...' : isCheckedIn ? 'In' : 'Check In'}
+                {isCheckingIn ? '...' : isCheckedIn ? 'Out' : 'In'}
               </Button>
             )}
 
             <Button
               variant="outline"
               size="sm"
-              className="h-8 sm:h-7 text-xs px-2 touch-manipulation"
+              className="h-7 text-[11px] px-2 touch-manipulation"
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
                 onRate();
               }}
             >
-              Rate
+              ⭐ Rate
             </Button>
 
-            {/* Edit/Delete for manual players - Mobile optimized */}
             {isAdminCreated && onEdit && (
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-8 w-8 sm:h-7 sm:w-7 p-0 touch-manipulation"
+                className="h-7 w-7 p-0 touch-manipulation"
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
@@ -867,7 +883,7 @@ function PlayerCard({
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-8 w-8 sm:h-7 sm:w-7 p-0 text-red-500 hover:text-red-700 touch-manipulation"
+                className="h-7 w-7 p-0 text-red-500 hover:text-red-700 touch-manipulation"
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();

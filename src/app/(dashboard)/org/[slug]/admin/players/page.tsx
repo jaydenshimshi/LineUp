@@ -1,10 +1,12 @@
 /**
  * Admin Players Management Page
  * View players and manage skill ratings
+ * Uses session date (6 AM cutoff) for check-ins
  */
 
 import { redirect } from 'next/navigation';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
+import { getSessionDate } from '@/lib/session-date';
 import { PlayersClient } from './players-client';
 import type { Metadata } from 'next';
 
@@ -81,13 +83,13 @@ export default async function PlayersPage({ params }: PageProps) {
     .select('player_id, rating_stars')
     .eq('organization_id', orgData.id);
 
-  // Get today's check-ins
-  const today = new Date().toISOString().split('T')[0];
+  // Get session date check-ins (6 AM cutoff)
+  const { sessionDateString } = getSessionDate();
   const { data: checkinsData } = await adminSupabase
     .from('checkins')
     .select('player_id')
     .eq('organization_id', orgData.id)
-    .eq('date', today)
+    .eq('date', sessionDateString)
     .eq('status', 'checked_in');
 
   interface Player {
@@ -125,10 +127,10 @@ export default async function PlayersPage({ params }: PageProps) {
   return (
     <PlayersClient
       orgId={orgData.id}
-      orgSlug={slug}
       players={playersWithRatings}
       todayCheckins={todayCheckins}
       adminId={user.id}
+      sessionDate={sessionDateString}
     />
   );
 }
