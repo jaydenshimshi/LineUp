@@ -1,7 +1,6 @@
 'use client';
 
 import { useRef } from 'react';
-import { format } from 'date-fns';
 import {
   Card,
   CardContent,
@@ -29,6 +28,7 @@ interface TeamsViewClientProps {
   teams: Record<string, TeamAssignment[]>;
   hasTeams: boolean;
   dateString: string;
+  sessionLabel: string;
 }
 
 const teamColors = {
@@ -65,19 +65,17 @@ const positionLabels: Record<string, string> = {
   ST: 'ST',
 };
 
-export function TeamsViewClient({ orgName, teams, hasTeams, dateString }: TeamsViewClientProps) {
+export function TeamsViewClient({ orgName, teams, hasTeams, dateString, sessionLabel }: TeamsViewClientProps) {
   const teamsRef = useRef<HTMLDivElement>(null);
-  // Parse the date string to display - add time to avoid timezone issues
-  const displayDate = new Date(dateString + 'T12:00:00');
 
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto py-3 px-3 max-w-lg">
         {/* Header - Compact */}
         <div className="mb-3 text-center">
-          <h1 className="text-base font-semibold">Today&apos;s Teams</h1>
+          <h1 className="text-base font-semibold">Game Day Teams</h1>
           <p className="text-[11px] text-muted-foreground">
-            {format(displayDate, 'EEE, MMM d')}
+            {sessionLabel}
           </p>
         </div>
 

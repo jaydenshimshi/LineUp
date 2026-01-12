@@ -4,8 +4,8 @@
  */
 
 import { redirect } from 'next/navigation';
-import { format } from 'date-fns';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
+import { getSessionDate } from '@/lib/session-date';
 import { TeamsViewClient } from './teams-view-client';
 import type { Metadata } from 'next';
 
@@ -43,7 +43,9 @@ export default async function TeamsPage({ params }: PageProps) {
   const { slug } = await params;
   const supabase = await createClient();
   const adminSupabase = createAdminClient();
-  const today = format(new Date(), 'yyyy-MM-dd');
+
+  // Use session date (6 AM cutoff)
+  const { sessionDateString, displayLabel } = getSessionDate();
 
   const {
     data: { user },
@@ -78,8 +80,8 @@ export default async function TeamsPage({ params }: PageProps) {
     redirect('/organizations');
   }
 
-  // Get today's team run with assignments
-  const { data: teamRunsArray, error: teamRunError } = await adminSupabase
+  // Get session date's team run with assignments
+  const { data: teamRunsArray } = await adminSupabase
     .from('team_runs')
     .select(`
       id,
@@ -98,7 +100,7 @@ export default async function TeamsPage({ params }: PageProps) {
       )
     `)
     .eq('organization_id', orgData.id)
-    .eq('date', today)
+    .eq('date', sessionDateString)
     .in('status', ['published', 'locked'])
     .order('created_at', { ascending: false })
     .limit(1);
@@ -148,7 +150,8 @@ export default async function TeamsPage({ params }: PageProps) {
       orgName={orgData.name}
       teams={teams}
       hasTeams={!!hasTeams}
-      dateString={teamRun?.date || today}
+      dateString={sessionDateString}
+      sessionLabel={displayLabel}
     />
   );
 }
