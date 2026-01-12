@@ -207,6 +207,8 @@ function PlayerTeamCard({
   showYellow: boolean;
 }) {
   const colors = teamColors[assignment.team_color as TeamColor];
+  const isSub = assignment.team_color === 'sub';
+  const benchTeamColors = isSub && assignment.bench_team ? teamColors[assignment.bench_team as TeamColor] : null;
 
   return (
     <div
@@ -230,6 +232,11 @@ function PlayerTeamCard({
             <span className="text-xs text-muted-foreground">
               {positionLabels[assignment.players.main_position]}
             </span>
+            {isSub && assignment.bench_team && (
+              <span className={cn("text-[10px] px-1.5 py-0.5 rounded capitalize", benchTeamColors?.badge)}>
+                {assignment.bench_team} sub
+              </span>
+            )}
             <StarRating rating={assignment.rating} />
           </div>
         </div>

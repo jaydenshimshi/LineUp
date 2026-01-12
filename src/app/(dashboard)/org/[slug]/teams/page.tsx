@@ -24,6 +24,7 @@ interface TeamAssignment {
   id: string;
   team_color: 'red' | 'blue' | 'yellow' | 'sub';
   assigned_role: string | null;
+  bench_team: string | null;
   players: {
     id: string;
     full_name: string;
@@ -91,6 +92,7 @@ export default async function TeamsPage({ params }: PageProps) {
         id,
         team_color,
         assigned_role,
+        bench_team,
         players (
           id,
           full_name,

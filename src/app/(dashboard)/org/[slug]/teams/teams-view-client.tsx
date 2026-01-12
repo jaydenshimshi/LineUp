@@ -15,6 +15,7 @@ interface TeamAssignment {
   id: string;
   team_color: 'red' | 'blue' | 'yellow' | 'sub';
   assigned_role: string | null;
+  bench_team: string | null;
   players: {
     id: string;
     full_name: string;
@@ -172,35 +173,44 @@ export function TeamsViewClient({ orgName, teams, hasTeams, dateString, sessionL
                   </CardHeader>
                   <CardContent className="p-2 pt-0">
                     <div className="space-y-1">
-                      {teams.sub.map((assignment) => (
-                        <div
-                          key={assignment.id}
-                          className="flex items-center justify-between py-1 border-b border-border/30 last:border-0"
-                        >
-                          <div className="flex items-center gap-1.5">
-                            <div className="w-5 h-5 rounded-full bg-muted flex items-center justify-center text-[9px] font-medium">
-                              {assignment.players.full_name
-                                .split(' ')
-                                .map((n) => n[0])
-                                .join('')
-                                .slice(0, 2)}
-                            </div>
-                            <span className="text-[11px] font-medium">
-                              {assignment.players.full_name}
-                            </span>
-                          </div>
-                          <div className="flex flex-col items-end">
-                            <Badge variant="outline" className="text-[8px] h-4 px-1">
-                              {positionLabels[assignment.players.main_position] || assignment.players.main_position}
-                            </Badge>
-                            {assignment.players.alt_position && (
-                              <span className="text-[7px] text-muted-foreground/70">
-                                /{positionLabels[assignment.players.alt_position]}
+                      {teams.sub.map((assignment) => {
+                        const benchColor = assignment.bench_team as 'red' | 'blue' | 'yellow' | null;
+                        const benchColors = benchColor ? teamColors[benchColor] : null;
+                        return (
+                          <div
+                            key={assignment.id}
+                            className="flex items-center justify-between py-1 border-b border-border/30 last:border-0"
+                          >
+                            <div className="flex items-center gap-1.5">
+                              <div className="w-5 h-5 rounded-full bg-muted flex items-center justify-center text-[9px] font-medium">
+                                {assignment.players.full_name
+                                  .split(' ')
+                                  .map((n) => n[0])
+                                  .join('')
+                                  .slice(0, 2)}
+                              </div>
+                              <span className="text-[11px] font-medium">
+                                {assignment.players.full_name}
                               </span>
-                            )}
+                              {benchColor && (
+                                <span className={`text-[8px] px-1 py-0.5 rounded capitalize ${benchColors?.badge}`}>
+                                  {benchColor}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex flex-col items-end">
+                              <Badge variant="outline" className="text-[8px] h-4 px-1">
+                                {positionLabels[assignment.players.main_position] || assignment.players.main_position}
+                              </Badge>
+                              {assignment.players.alt_position && (
+                                <span className="text-[7px] text-muted-foreground/70">
+                                  /{positionLabels[assignment.players.alt_position]}
+                                </span>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </CardContent>
                 </Card>
