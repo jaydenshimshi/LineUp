@@ -218,7 +218,7 @@ export function AdminDashboardClient({
       color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
     },
     {
-      title: "Today's Check-ins",
+      title: 'Game Day Check-ins',
       value: todayCheckins,
       icon: '✅',
       href: `admin/teams`,
@@ -283,7 +283,7 @@ export function AdminDashboardClient({
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div>
                 <p className="text-sm text-muted-foreground">
-                  {format(new Date(), 'EEEE, MMMM d')}
+                  {sessionLabel}
                 </p>
                 <p className="text-2xl font-bold mt-1">
                   {todayCheckins} players checked in
@@ -355,7 +355,7 @@ export function AdminDashboardClient({
           <Card className="mb-8">
             <CardHeader className="pb-4">
               <div className="flex items-center justify-between">
-                <CardTitle className="text-lg">Today&apos;s Teams</CardTitle>
+                <CardTitle className="text-lg">Game Day Teams</CardTitle>
                 <Link href={`/org/${orgSlug}/admin/teams`}>
                   <Button variant="outline" size="sm">
                     Edit Teams
