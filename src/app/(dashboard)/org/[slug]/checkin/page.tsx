@@ -28,6 +28,10 @@ export default async function CheckinPage({ params }: PageProps) {
   // Ensure no caching for this page - always fetch fresh data
   noStore();
 
+  // Force reading headers to make this truly dynamic
+  const headersList = await headers();
+  const _userAgent = headersList.get('user-agent');
+
   const { slug } = await params;
   const supabase = await createClient();
 
