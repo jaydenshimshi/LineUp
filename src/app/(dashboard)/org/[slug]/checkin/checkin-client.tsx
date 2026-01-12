@@ -63,9 +63,10 @@ export function CheckinClient({
 }: CheckinClientProps) {
   const router = useRouter();
   const [, startTransition] = useTransition();
-  // Use initialCheckins for first render only - refetchCheckins on mount will get fresh data
-  const [checkins, setCheckins] = useState(initialCheckins);
+  // Start with empty state - ALWAYS fetch fresh from API, never trust server data
+  const [checkins, setCheckins] = useState<Record<string, 'checked_in' | 'checked_out'>>({});
   const [loadingDate, setLoadingDate] = useState<string | null>(null);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
 
   // Player list drawer state
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -106,9 +107,11 @@ export function CheckinClient({
           });
         }
         setCheckins(checkinMap);
+        setIsInitialLoad(false);
       }
     } catch (error) {
       console.error('Failed to refetch checkins:', error);
+      setIsInitialLoad(false);
     }
   }, [playerId, orgId, startDateStr, endDateStr]);
 

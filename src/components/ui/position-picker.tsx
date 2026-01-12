@@ -2,13 +2,7 @@
 
 import * as React from "react"
 import { cn } from "@/lib/utils"
-import { ChevronDownIcon, CheckIcon } from "lucide-react"
-import {
-  Drawer,
-  DrawerContent,
-  DrawerHeader,
-  DrawerTitle,
-} from "@/components/ui/drawer"
+import { ChevronDownIcon } from "lucide-react"
 
 export interface PositionPickerProps {
   value: string | null | undefined
@@ -21,8 +15,8 @@ export interface PositionPickerProps {
 }
 
 /**
- * Position picker using a drawer/sheet
- * Avoids all scroll/focus issues with native selects on mobile
+ * Simple position picker using native select
+ * Works reliably on all devices without scroll issues
  */
 export function PositionPicker({
   value,
@@ -30,85 +24,44 @@ export function PositionPicker({
   options,
   placeholder = "Select position",
   disabled = false,
-  label,
   allowNone = false,
 }: PositionPickerProps) {
-  const [open, setOpen] = React.useState(false)
-
-  const selectedOption = options.find(opt => opt.value === value)
-  const displayValue = selectedOption?.label || placeholder
-
-  const handleSelect = (optionValue: string | null) => {
-    onChange(optionValue)
-    setOpen(false)
+  const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const val = e.target.value
+    if (val === '' || val === 'none') {
+      onChange(null)
+    } else {
+      onChange(val)
+    }
   }
 
   return (
-    <>
-      <button
-        type="button"
-        onClick={() => !disabled && setOpen(true)}
+    <div className="relative">
+      <select
+        value={value || (allowNone ? 'none' : '')}
+        onChange={handleChange}
         disabled={disabled}
         className={cn(
-          "flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs",
-          "focus:outline-none focus:border-ring focus:ring-[3px] focus:ring-ring/50",
+          "flex h-10 w-full appearance-none items-center rounded-md border border-input bg-background px-3 py-2 pr-10 text-base shadow-sm",
+          "focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
           "disabled:cursor-not-allowed disabled:opacity-50",
-          "dark:bg-input/30",
           !value && "text-muted-foreground"
         )}
       >
-        <span className="truncate">{displayValue}</span>
-        <ChevronDownIcon className="size-4 opacity-50 flex-shrink-0" />
-      </button>
-
-      <Drawer open={open} onOpenChange={setOpen}>
-        <DrawerContent>
-          <DrawerHeader className="text-left">
-            <DrawerTitle>{label || placeholder}</DrawerTitle>
-          </DrawerHeader>
-          <div className="px-4 pb-6 max-h-[60vh] overflow-y-auto">
-            <div className="space-y-1">
-              {allowNone && (
-                <button
-                  type="button"
-                  onClick={() => handleSelect(null)}
-                  className={cn(
-                    "flex w-full items-center justify-between rounded-lg px-3 py-3 text-left text-sm transition-colors",
-                    "hover:bg-muted active:bg-muted/80",
-                    value === null || value === undefined || value === 'none'
-                      ? "bg-primary/10 text-primary font-medium"
-                      : "text-foreground"
-                  )}
-                >
-                  <span>None</span>
-                  {(value === null || value === undefined || value === 'none') && (
-                    <CheckIcon className="size-4 text-primary" />
-                  )}
-                </button>
-              )}
-              {options.map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => handleSelect(option.value)}
-                  className={cn(
-                    "flex w-full items-center justify-between rounded-lg px-3 py-3 text-left text-sm transition-colors",
-                    "hover:bg-muted active:bg-muted/80",
-                    value === option.value
-                      ? "bg-primary/10 text-primary font-medium"
-                      : "text-foreground"
-                  )}
-                >
-                  <span>{option.label}</span>
-                  {value === option.value && (
-                    <CheckIcon className="size-4 text-primary" />
-                  )}
-                </button>
-              ))}
-            </div>
-          </div>
-        </DrawerContent>
-      </Drawer>
-    </>
+        {allowNone ? (
+          <option value="none">None</option>
+        ) : (
+          <option value="" disabled>
+            {placeholder}
+          </option>
+        )}
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+      <ChevronDownIcon className="pointer-events-none absolute right-3 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
+    </div>
   )
 }
