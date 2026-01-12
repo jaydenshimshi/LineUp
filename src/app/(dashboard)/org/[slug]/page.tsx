@@ -256,7 +256,7 @@ export default async function OrgHomePage({ params }: PageProps) {
             playerName={playerData.full_name}
             isCheckedIn={isCheckedIn}
             checkedInCount={checkedInCount || 0}
-            date={today}
+            dateString={todayString}
           />
 
           {/* Quick Actions - Compact */}

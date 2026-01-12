@@ -7,7 +7,6 @@
 
 import { useState, useTransition, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { format } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -20,7 +19,7 @@ interface OrgTodayClientProps {
   playerName: string;
   isCheckedIn: boolean;
   checkedInCount: number;
-  date: Date;
+  dateString: string;
 }
 
 const MINIMUM_PLAYERS = 6;
@@ -93,7 +92,7 @@ export function OrgTodayClient({
   playerName,
   isCheckedIn: initialCheckedIn,
   checkedInCount: initialCount,
-  date,
+  dateString,
 }: OrgTodayClientProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -103,7 +102,6 @@ export function OrgTodayClient({
   const [showStatusCard, setShowStatusCard] = useState(false);
 
   const gameStatus = checkedInCount >= MINIMUM_PLAYERS ? 'game_on' : 'not_enough';
-  const dateString = format(date, 'yyyy-MM-dd');
   const firstName = playerName.split(' ')[0];
 
   // Animation effect when check-in status changes
