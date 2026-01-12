@@ -110,7 +110,7 @@ export function RatingForm({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent>
+      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Rate {playerName}</DialogTitle>
           <DialogDescription>
@@ -121,29 +121,39 @@ export function RatingForm({
 
         <div className="space-y-4 py-4">
           {error && (
-            <p className="text-sm text-red-500 bg-red-50 p-2 rounded">
+            <p className="text-sm text-red-500 bg-red-50 dark:bg-red-950 p-2 rounded">
               {error}
             </p>
           )}
 
-          <div className="space-y-2">
+          <div className="space-y-3">
             <Label>Skill Rating</Label>
-            <div className="flex gap-2">
+            <div className="flex gap-3 justify-center">
               {[1, 2, 3, 4, 5].map((star) => (
                 <button
                   key={star}
                   type="button"
-                  onClick={() => setRating(star)}
-                  className={`text-3xl transition-colors ${
-                    star <= rating ? 'text-yellow-500' : 'text-gray-300'
-                  } hover:text-yellow-400`}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setRating(star);
+                  }}
+                  onTouchEnd={(e) => {
+                    e.preventDefault();
+                    setRating(star);
+                  }}
+                  className={`w-12 h-12 sm:w-10 sm:h-10 rounded-lg border-2 flex items-center justify-center text-xl transition-colors touch-manipulation ${
+                    star <= rating
+                      ? 'border-amber-400 bg-amber-50 dark:bg-amber-900/30'
+                      : 'border-gray-200 dark:border-gray-700'
+                  }`}
                   disabled={isLoading}
                 >
-                  *
+                  {star <= rating ? '⭐' : '☆'}
                 </button>
               ))}
             </div>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-gray-500 dark:text-gray-400 text-center">
               {RATING_LABELS[rating]} ({rating}/5)
             </p>
           </div>
@@ -157,15 +167,25 @@ export function RatingForm({
               onChange={(e) => setNotes(e.target.value)}
               disabled={isLoading}
               rows={3}
+              className="resize-none"
             />
           </div>
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={isLoading}>
+        <DialogFooter className="flex-col sm:flex-row gap-2">
+          <Button
+            variant="outline"
+            onClick={onClose}
+            disabled={isLoading}
+            className="w-full sm:w-auto"
+          >
             Cancel
           </Button>
-          <Button onClick={handleSubmit} disabled={isLoading}>
+          <Button
+            onClick={handleSubmit}
+            disabled={isLoading}
+            className="w-full sm:w-auto"
+          >
             {isLoading ? 'Saving...' : 'Save Rating'}
           </Button>
         </DialogFooter>

@@ -22,8 +22,12 @@ export const metadata: Metadata = {
   description: 'Team coordination made simple - Check in for games and get balanced team assignments',
   manifest: '/manifest.json',
   icons: {
-    icon: '/icon.svg',
-    apple: '/icon.svg',
+    icon: [
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+      { url: '/icon.svg', type: 'image/svg+xml', sizes: '32x32' },
+    ],
+    apple: '/icons/icon-192.svg',
+    shortcut: '/favicon.svg',
   },
   appleWebApp: {
     capable: true,

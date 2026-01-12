@@ -403,7 +403,7 @@ export function PlayersClient({ orgId, orgSlug, players, todayCheckins = [] }: P
                 onRate={() => handleOpenRating(player)}
                 onEdit={!player.user_id ? () => handleOpenEdit(player) : undefined}
                 onDelete={!player.user_id ? () => handleDeletePlayer(player) : undefined}
-                onToggleCheckin={!player.user_id ? () => handleToggleCheckin(player) : undefined}
+                onToggleCheckin={() => handleToggleCheckin(player)}
                 isCheckedIn={checkedInPlayers.has(player.id)}
                 isCheckingIn={checkingIn === player.id}
               />
@@ -438,7 +438,7 @@ export function PlayersClient({ orgId, orgSlug, players, todayCheckins = [] }: P
                         onRate={() => handleOpenRating(player)}
                         onEdit={!player.user_id ? () => handleOpenEdit(player) : undefined}
                         onDelete={!player.user_id ? () => handleDeletePlayer(player) : undefined}
-                        onToggleCheckin={!player.user_id ? () => handleToggleCheckin(player) : undefined}
+                        onToggleCheckin={() => handleToggleCheckin(player)}
                         isCheckedIn={checkedInPlayers.has(player.id)}
                         isCheckingIn={checkingIn === player.id}
                       />
@@ -451,9 +451,9 @@ export function PlayersClient({ orgId, orgSlug, players, todayCheckins = [] }: P
         )}
       </div>
 
-      {/* Rating Dialog */}
+      {/* Rating Dialog - Mobile Optimized */}
       <Dialog open={!!selectedPlayer} onOpenChange={() => setSelectedPlayer(null)}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Rate Player</DialogTitle>
             <DialogDescription>
@@ -462,17 +462,16 @@ export function PlayersClient({ orgId, orgSlug, players, todayCheckins = [] }: P
           </DialogHeader>
 
           {selectedPlayer && (
-            <div className="py-6">
+            <div className="py-4">
               {/* Player Info */}
-              <div className="flex items-center gap-4 mb-6">
-                <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center text-xl font-medium">
+              <div className="flex items-center gap-3 mb-6 p-3 bg-muted/50 rounded-lg">
+                <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center text-lg font-medium flex-shrink-0">
                   {selectedPlayer.full_name.split(' ').map((n) => n[0]).join('').slice(0, 2)}
                 </div>
-                <div>
-                  <p className="font-semibold text-lg">{selectedPlayer.full_name}</p>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <span>{selectedPlayer.age} years old</span>
-                    <span>•</span>
+                <div className="min-w-0">
+                  <p className="font-semibold text-base truncate">{selectedPlayer.full_name}</p>
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
+                    <span>{selectedPlayer.age} yrs</span>
                     <Badge className={positionLabels[selectedPlayer.main_position]?.color} variant="secondary">
                       {selectedPlayer.main_position}
                     </Badge>
@@ -480,21 +479,28 @@ export function PlayersClient({ orgId, orgSlug, players, todayCheckins = [] }: P
                 </div>
               </div>
 
-              {/* Star Rating */}
+              {/* Star Rating - Larger touch targets for mobile */}
               <div className="text-center">
-                <p className="text-sm text-muted-foreground mb-3">Skill Level</p>
-                <div className="flex justify-center gap-2">
+                <p className="text-sm text-muted-foreground mb-4">Skill Level</p>
+                <div className="flex justify-center gap-3">
                   {[1, 2, 3, 4, 5].map((star) => (
                     <button
                       key={star}
                       type="button"
-                      onClick={() => setSelectedRating(star)}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setSelectedRating(star);
+                      }}
+                      onTouchEnd={(e) => {
+                        e.preventDefault();
+                        setSelectedRating(star);
+                      }}
                       className={cn(
-                        'w-12 h-12 rounded-xl border-2 flex items-center justify-center text-2xl transition-all',
-                        'hover:scale-110 active:scale-95',
+                        'w-14 h-14 sm:w-12 sm:h-12 rounded-xl border-2 flex items-center justify-center text-2xl transition-colors touch-manipulation',
                         star <= selectedRating
                           ? 'border-amber-400 bg-amber-50 dark:bg-amber-900/30'
-                          : 'border-muted hover:border-amber-200'
+                          : 'border-muted'
                       )}
                     >
                       {star <= selectedRating ? '⭐' : '☆'}
@@ -512,20 +518,28 @@ export function PlayersClient({ orgId, orgSlug, players, todayCheckins = [] }: P
             </div>
           )}
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setSelectedPlayer(null)}>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setSelectedPlayer(null)}
+              className="w-full sm:w-auto"
+            >
               Cancel
             </Button>
-            <Button onClick={handleSaveRating} disabled={isSaving}>
+            <Button
+              onClick={handleSaveRating}
+              disabled={isSaving}
+              className="w-full sm:w-auto"
+            >
               {isSaving ? 'Saving...' : 'Save Rating'}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Add Player Dialog */}
+      {/* Add Player Dialog - Mobile Optimized */}
       <Dialog open={showAddPlayer} onOpenChange={setShowAddPlayer}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add Player</DialogTitle>
             <DialogDescription>
@@ -620,20 +634,28 @@ export function PlayersClient({ orgId, orgSlug, players, todayCheckins = [] }: P
             </div>
           </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAddPlayer(false)}>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setShowAddPlayer(false)}
+              className="w-full sm:w-auto"
+            >
               Cancel
             </Button>
-            <Button onClick={handleAddPlayer} disabled={isAddingPlayer}>
+            <Button
+              onClick={handleAddPlayer}
+              disabled={isAddingPlayer}
+              className="w-full sm:w-auto"
+            >
               {isAddingPlayer ? 'Adding...' : 'Add Player'}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Edit Player Dialog */}
+      {/* Edit Player Dialog - Mobile Optimized */}
       <Dialog open={!!editingPlayer} onOpenChange={() => setEditingPlayer(null)}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Player</DialogTitle>
             <DialogDescription>
@@ -699,11 +721,19 @@ export function PlayersClient({ orgId, orgSlug, players, todayCheckins = [] }: P
             </div>
           </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditingPlayer(null)}>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setEditingPlayer(null)}
+              className="w-full sm:w-auto"
+            >
               Cancel
             </Button>
-            <Button onClick={handleEditPlayer} disabled={isEditing}>
+            <Button
+              onClick={handleEditPlayer}
+              disabled={isEditing}
+              className="w-full sm:w-auto"
+            >
               {isEditing ? 'Saving...' : 'Save Changes'}
             </Button>
           </DialogFooter>
@@ -772,47 +802,78 @@ function PlayerCard({
             </div>
           </div>
 
-          <div className="flex items-center gap-2 flex-shrink-0">
-            {/* Rating Display */}
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0 flex-wrap justify-end">
+            {/* Rating Display - visible on all screens */}
             {player.rating ? (
-              <div className="hidden sm:flex items-center gap-0.5 bg-amber-50 dark:bg-amber-900/30 px-1.5 py-0.5 rounded">
+              <div className="flex items-center gap-0.5 bg-amber-50 dark:bg-amber-900/30 px-1.5 py-0.5 rounded">
                 {Array.from({ length: 5 }).map((_, i) => (
-                  <span key={i} className="text-xs">
+                  <span key={i} className="text-[10px] sm:text-xs">
                     {i < player.rating! ? '⭐' : '☆'}
                   </span>
                 ))}
               </div>
             ) : (
-              <Badge variant="outline" className="hidden sm:flex text-[10px]">
+              <Badge variant="outline" className="text-[10px]">
                 Unrated
               </Badge>
             )}
 
-            {/* Check-in toggle for manual players */}
-            {isAdminCreated && onToggleCheckin && (
+            {/* Check-in toggle for all players - Mobile optimized */}
+            {onToggleCheckin && (
               <Button
                 variant={isCheckedIn ? 'default' : 'outline'}
                 size="sm"
-                className="h-7 text-xs"
-                onClick={onToggleCheckin}
+                className="h-8 sm:h-7 text-xs px-2 touch-manipulation"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onToggleCheckin();
+                }}
                 disabled={isCheckingIn}
               >
                 {isCheckingIn ? '...' : isCheckedIn ? 'In' : 'Check In'}
               </Button>
             )}
 
-            <Button variant="outline" size="sm" className="h-7 text-xs" onClick={onRate}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 sm:h-7 text-xs px-2 touch-manipulation"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onRate();
+              }}
+            >
               Rate
             </Button>
 
-            {/* Edit/Delete for manual players */}
+            {/* Edit/Delete for manual players - Mobile optimized */}
             {isAdminCreated && onEdit && (
-              <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={onEdit}>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 sm:h-7 sm:w-7 p-0 touch-manipulation"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onEdit();
+                }}
+              >
                 ✏️
               </Button>
             )}
             {isAdminCreated && onDelete && (
-              <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-500 hover:text-red-700" onClick={onDelete}>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 sm:h-7 sm:w-7 p-0 text-red-500 hover:text-red-700 touch-manipulation"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onDelete();
+                }}
+              >
                 🗑️
               </Button>
             )}

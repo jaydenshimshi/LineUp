@@ -112,6 +112,9 @@ export function Header({ user, player }: HeaderProps) {
               <Link href="/organizations/create">Create Group</Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
+            <DropdownMenuItem asChild>
+              <Link href="/settings">Settings</Link>
+            </DropdownMenuItem>
             <DropdownMenuItem
               onClick={handleSignOut}
               className="text-destructive cursor-pointer"

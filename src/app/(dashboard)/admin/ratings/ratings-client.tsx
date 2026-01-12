@@ -43,50 +43,50 @@ export function RatingsClient({ players }: RatingsClientProps) {
         <CardHeader>
           <CardTitle>All Players</CardTitle>
           <CardDescription>
-            Click on a player to assign or update their rating
+            Tap a player to assign or update their rating
           </CardDescription>
         </CardHeader>
         <CardContent>
           {players.length > 0 ? (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
               {players.map((player) => (
                 <button
                   key={player.id}
-                  onClick={() => setSelectedPlayer(player)}
-                  className="text-left p-4 rounded-lg border hover:border-green-500 hover:bg-green-50 dark:hover:bg-green-950 transition-colors"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setSelectedPlayer(player);
+                  }}
+                  className="text-left p-3 sm:p-4 rounded-lg border hover:border-green-500 hover:bg-green-50 dark:hover:bg-green-950 transition-colors touch-manipulation active:scale-[0.98]"
                 >
-                  <div className="flex justify-between items-start mb-2">
-                    <div>
-                      <p className="font-medium">{player.full_name}</p>
+                  <div className="flex justify-between items-start gap-2 mb-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium truncate">{player.full_name}</p>
                       <p className="text-sm text-gray-500">Age: {player.age}</p>
                     </div>
                     {player.rating_stars ? (
-                      <div className="flex">
+                      <div className="flex gap-0.5 flex-shrink-0">
                         {[1, 2, 3, 4, 5].map((star) => (
                           <span
                             key={star}
-                            className={
-                              star <= player.rating_stars!
-                                ? 'text-yellow-500'
-                                : 'text-gray-300'
-                            }
+                            className="text-sm sm:text-base"
                           >
-                            *
+                            {star <= player.rating_stars! ? '⭐' : '☆'}
                           </span>
                         ))}
                       </div>
                     ) : (
-                      <Badge variant="outline" className="text-yellow-600">
+                      <Badge variant="outline" className="text-yellow-600 flex-shrink-0">
                         Unrated
                       </Badge>
                     )}
                   </div>
-                  <div className="flex gap-1">
-                    <Badge variant="secondary">
+                  <div className="flex gap-1 flex-wrap">
+                    <Badge variant="secondary" className="text-xs">
                       {POSITION_LABELS[player.main_position]}
                     </Badge>
                     {player.alt_position && (
-                      <Badge variant="outline">{player.alt_position}</Badge>
+                      <Badge variant="outline" className="text-xs">{player.alt_position}</Badge>
                     )}
                   </div>
                   {player.rating_notes && (

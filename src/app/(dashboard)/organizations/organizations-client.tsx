@@ -28,8 +28,19 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { toast } from 'sonner';
 
 interface MembershipWithOrg {
   id: string;
@@ -71,6 +82,10 @@ export function OrganizationsClient({ memberships }: OrganizationsClientProps) {
   const [joinError, setJoinError] = useState<string | null>(null);
   const [isJoining, setIsJoining] = useState(false);
   const [joinDialogOpen, setJoinDialogOpen] = useState(false);
+  const [leaveOrgId, setLeaveOrgId] = useState<string | null>(null);
+  const [leaveOrgName, setLeaveOrgName] = useState<string>('');
+  const [leaveOrgRole, setLeaveOrgRole] = useState<string>('');
+  const [isLeaving, setIsLeaving] = useState(false);
 
   // Handle QR code scan - auto-join with code from URL or localStorage
   useEffect(() => {
@@ -169,6 +184,37 @@ export function OrganizationsClient({ memberships }: OrganizationsClientProps) {
     } finally {
       setIsJoining(false);
     }
+  };
+
+  const handleLeaveGroup = async () => {
+    if (!leaveOrgId) return;
+
+    setIsLeaving(true);
+    try {
+      const response = await fetch(`/api/organizations/${leaveOrgId}/leave`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (response.ok) {
+        toast.success(`Left ${leaveOrgName}`);
+        setLeaveOrgId(null);
+        router.refresh();
+      } else {
+        const data = await response.json();
+        toast.error(data.error || 'Failed to leave group');
+      }
+    } catch {
+      toast.error('Something went wrong');
+    } finally {
+      setIsLeaving(false);
+    }
+  };
+
+  const openLeaveDialog = (orgId: string, orgName: string, role: string) => {
+    setLeaveOrgId(orgId);
+    setLeaveOrgName(orgName);
+    setLeaveOrgRole(role);
   };
 
   // Show loading screen while auto-joining
@@ -282,48 +328,64 @@ export function OrganizationsClient({ memberships }: OrganizationsClientProps) {
               {memberships
                 .filter(({ organizations: org }) => org !== null)
                 .map(({ organizations: org, role, joined_at }) => (
-                <Link key={org!.id} href={`/org/${org!.slug}`}>
-                  <Card className="h-full hover:shadow-xl hover:shadow-primary/10 hover:border-primary/50 hover:-translate-y-1 transition-all duration-300 cursor-pointer group overflow-hidden">
-                    {/* Colored top border */}
-                    <div className="h-1 bg-gradient-to-r from-primary to-primary/50" />
-                    <CardHeader className="pb-3">
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center text-2xl group-hover:scale-110 transition-transform shadow-sm">
-                            {sportIcons[org!.sport] || sportIcons.default}
+                <div key={org!.id} className="relative group/card">
+                  <Link href={`/org/${org!.slug}`}>
+                    <Card className="h-full hover:shadow-xl hover:shadow-primary/10 hover:border-primary/50 hover:-translate-y-1 transition-all duration-300 cursor-pointer group overflow-hidden">
+                      {/* Colored top border */}
+                      <div className="h-1 bg-gradient-to-r from-primary to-primary/50" />
+                      <CardHeader className="pb-3">
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center text-2xl group-hover:scale-110 transition-transform shadow-sm">
+                              {sportIcons[org!.sport] || sportIcons.default}
+                            </div>
+                            <div>
+                              <CardTitle className="text-lg group-hover:text-primary transition-colors">
+                                {org!.name}
+                              </CardTitle>
+                              <CardDescription className="text-sm font-mono">
+                                /{org!.slug}
+                              </CardDescription>
+                            </div>
                           </div>
-                          <div>
-                            <CardTitle className="text-lg group-hover:text-primary transition-colors">
-                              {org!.name}
-                            </CardTitle>
-                            <CardDescription className="text-sm font-mono">
-                              /{org!.slug}
-                            </CardDescription>
-                          </div>
+                          <Badge className={roleColors[role]} variant="secondary">
+                            {role}
+                          </Badge>
                         </div>
-                        <Badge className={roleColors[role]} variant="secondary">
-                          {role}
-                        </Badge>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      {org!.description && (
-                        <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
-                          {org!.description}
-                        </p>
-                      )}
-                      <div className="flex items-center justify-between text-xs text-muted-foreground">
-                        <span>Joined {format(new Date(joined_at), 'MMM d, yyyy')}</span>
-                        <span className="text-primary opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
-                          Open
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                          </svg>
-                        </span>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </Link>
+                      </CardHeader>
+                      <CardContent>
+                        {org!.description && (
+                          <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
+                            {org!.description}
+                          </p>
+                        )}
+                        <div className="flex items-center justify-between text-xs text-muted-foreground">
+                          <span>Joined {format(new Date(joined_at), 'MMM d, yyyy')}</span>
+                          <span className="text-primary opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                            Open
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                          </span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </Link>
+                  {/* Leave Group Button */}
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      openLeaveDialog(org!.id, org!.name, role);
+                    }}
+                    className="absolute top-3 right-3 p-1.5 rounded-full bg-background/80 backdrop-blur-sm border shadow-sm opacity-0 group-hover/card:opacity-100 transition-opacity hover:bg-destructive/10 hover:border-destructive/30 hover:text-destructive z-10"
+                    title="Leave group"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                    </svg>
+                  </button>
+                </div>
               ))}
             </div>
           </div>
@@ -385,6 +447,43 @@ export function OrganizationsClient({ memberships }: OrganizationsClientProps) {
           </div>
         )}
       </div>
+
+      {/* Leave Group Confirmation Dialog */}
+      <AlertDialog open={!!leaveOrgId} onOpenChange={() => setLeaveOrgId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Leave {leaveOrgName}?</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p>
+                Are you sure you want to leave this group? You will lose access to:
+              </p>
+              <ul className="list-disc list-inside text-sm space-y-1">
+                <li>Team assignments and schedules</li>
+                <li>Group announcements</li>
+                <li>Your check-in history</li>
+              </ul>
+              {leaveOrgRole === 'owner' && (
+                <p className="text-destructive font-medium mt-3">
+                  Warning: You are the owner of this group. If you leave, the group may become inaccessible.
+                </p>
+              )}
+              <p className="text-sm text-muted-foreground mt-2">
+                You can rejoin later with a new invite code.
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleLeaveGroup}
+              disabled={isLeaving}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isLeaving ? 'Leaving...' : 'Leave Group'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
