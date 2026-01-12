@@ -126,12 +126,33 @@
   * {
     @apply border-border outline-ring/50;
   }
+  html {
+    /* Prevent overscroll bounce on mobile */
+    overscroll-behavior: none;
+    /* Smooth scroll only when not reduced motion */
+    scroll-behavior: smooth;
+    /* Allow vertical scroll, prevent horizontal */
+    touch-action: pan-y;
+  }
   body {
     @apply bg-background text-foreground antialiased;
+    /* Prevent pull-to-refresh and rubber banding */
+    overscroll-behavior-y: none;
+    /* Improve touch scrolling */
+    -webkit-overflow-scrolling: touch;
+    /* Layout containment for better performance */
+    contain: layout style;
   }
-  /* Smooth scroll */
-  html {
-    scroll-behavior: smooth;
+  /* Reduce motion for users who prefer it */
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
   }
 }
 
@@ -545,8 +566,8 @@
   border-radius: 4px;
 }
 
-/* Smooth color transitions for theme changes */
-* {
+/* Smooth color transitions for theme changes - only on specific elements, not during scroll */
+.theme-transition {
   transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
@@ -561,4 +582,58 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+}
+
+/* Mobile scroll performance optimizations */
+@media (max-width: 768px) {
+  /* Disable expensive backdrop-filter on mobile for scroll performance */
+  .glass {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background: oklch(1 0 0 / 95%);
+  }
+
+  .dark .glass {
+    background: oklch(0.16 0.02 260 / 95%);
+  }
+
+  /* Prevent horizontal scroll and bounce */
+  html, body {
+    overflow-x: hidden;
+    position: relative;
+    width: 100%;
+  }
+
+  /* Use GPU acceleration for main scrollable containers */
+  main, [role="main"], .scroll-container {
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+  }
+
+  /* Disable hover effects on touch devices */
+  .card-hover:hover,
+  .hover-lift:hover,
+  .btn-interactive:hover {
+    transform: none;
+  }
+
+  /* Optimize touch scrolling */
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+/* Ensure smooth scrolling on iOS */
+@supports (-webkit-touch-callout: none) {
+  body {
+    height: -webkit-fill-available;
+  }
+}
+
+/* Hardware acceleration for fixed/sticky elements */
+.fixed, .sticky, [style*="position: fixed"], [style*="position: sticky"] {
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
 }
