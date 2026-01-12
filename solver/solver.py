@@ -62,6 +62,7 @@ class Player:
     rating: int  # 1-5 stars
     main_pos: Position
     alt_pos: Optional[Position] = None
+    checked_in_at: Optional[datetime] = None  # For first-come-first-serve sub determination
 
     def can_play(self, pos: Position) -> bool:
         return self.main_pos == pos or self.alt_pos == pos
@@ -204,12 +205,17 @@ def calculate_solution_score(teams: List[List[Player]], team_count: int) -> Tupl
                 position_score += 15 * excess
                 team_detail["issues"].append(f"{pos_counts[pos]}x {pos.value}")
 
-        # GK check
+        # GK checks - penalize both missing GK and multiple GKs
         if pos_counts[Position.GK] == 0:
             can_cover = any(p.alt_pos == Position.GK for p in team)
             if not can_cover:
                 position_score += 100  # Very heavy penalty
                 team_detail["issues"].append("No GK!")
+        elif pos_counts[Position.GK] >= 2:
+            # Heavy penalty for multiple GKs - teams should have exactly 1 GK
+            excess = pos_counts[Position.GK] - 1
+            position_score += 80 * excess  # Heavier than field position clustering
+            team_detail["issues"].append(f"{pos_counts[Position.GK]}x GK")
 
         position_details.append(team_detail)
 
@@ -500,8 +506,22 @@ def solve_teams(
         team_colors.append(TeamColor.YELLOW)
 
     total_playing = sum(team_sizes)
-    playing_players = sorted(players, key=lambda p: -p.rating)[:total_playing]
-    sub_players = sorted(players, key=lambda p: -p.rating)[total_playing:]
+
+    # HYBRID APPROACH: First-come-first-serve for playing spots, skill-based for team balance
+    # Sort by check-in time (earliest first) to determine who plays vs who becomes a sub
+    # Players who checked in first get priority for playing spots
+    def get_checkin_time(p: Player) -> datetime:
+        if p.checked_in_at:
+            return p.checked_in_at
+        # Fallback: if no check-in time, use a very old date to keep original order
+        return datetime.min
+
+    sorted_by_checkin = sorted(players, key=get_checkin_time)
+    playing_players = sorted_by_checkin[:total_playing]
+    sub_players = sorted_by_checkin[total_playing:]
+
+    debug_log(f"Playing: {len(playing_players)} (first to check in)")
+    debug_log(f"Subs: {len(sub_players)} (checked in late)")
 
     # ==========================================================================
     # Try multiple strategies and pick the best
@@ -674,6 +694,18 @@ def solve_from_dict(players_data: List[Dict], timeout: float = 10.0) -> Dict:
             main_pos = Position(p["main_position"])
             alt_pos = Position(p["alt_position"]) if p.get("alt_position") else None
 
+            # Parse checked_in_at timestamp for first-come-first-serve ordering
+            checked_in_at = None
+            if p.get("checked_in_at"):
+                try:
+                    # Handle ISO format timestamps
+                    checked_in_str = p["checked_in_at"]
+                    if checked_in_str.endswith('Z'):
+                        checked_in_str = checked_in_str[:-1] + '+00:00'
+                    checked_in_at = datetime.fromisoformat(checked_in_str.replace('Z', '+00:00'))
+                except (ValueError, TypeError):
+                    pass  # If parsing fails, leave as None
+
             player = Player(
                 player_id=str(p["player_id"]),
                 name=p["name"],
@@ -681,6 +713,7 @@ def solve_from_dict(players_data: List[Dict], timeout: float = 10.0) -> Dict:
                 rating=int(p.get("rating", 3)),
                 main_pos=main_pos,
                 alt_pos=alt_pos,
+                checked_in_at=checked_in_at,
             )
             players.append(player)
         except Exception as e:

@@ -41,11 +41,12 @@ export async function GET(request: NextRequest) {
     }
 
     // Get all checked-in players for this date with their info
+    // Order by checked_in_at for first-come-first-serve ordering
     const { data: checkins, error } = await supabase
       .from('checkins')
       .select(`
         id,
-        created_at,
+        checked_in_at,
         players (
           id,
           full_name,
@@ -59,7 +60,7 @@ export async function GET(request: NextRequest) {
       .eq('organization_id', organizationId)
       .eq('date', date)
       .eq('status', 'checked_in')
-      .order('created_at', { ascending: true });
+      .order('checked_in_at', { ascending: true });
 
     if (error) {
       console.error('Error fetching checkins:', error);
@@ -85,7 +86,7 @@ export async function GET(request: NextRequest) {
     // Format the response
     const players = (checkins || []).map((checkin: {
       id: string;
-      created_at: string;
+      checked_in_at: string;
       players: {
         id: string;
         full_name: string;
@@ -110,7 +111,7 @@ export async function GET(request: NextRequest) {
         isAdmin,
         role,
         checkinOrder: index + 1,
-        checkedInAt: checkin.created_at,
+        checkedInAt: checkin.checked_in_at,
         contact: showContact ? {
           email: player.contact_email,
           phone: player.contact_phone,

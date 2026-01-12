@@ -29,6 +29,7 @@ interface CheckedInPlayer {
   isAdmin: boolean;
   role: string;
   checkinOrder: number;
+  checkedInAt: string; // ISO timestamp for display
   contact: {
     email: string | null;
     phone: string | null;
@@ -611,6 +612,9 @@ export function CheckinClient({
                         ) : (
                           <span className="text-blue-600 dark:text-blue-400 text-[9px]">Sub</span>
                         )}
+                        <span className="text-[8px] text-muted-foreground/70">
+                          {format(new Date(player.checkedInAt), 'h:mm a')}
+                        </span>
                       </div>
                     </div>
 

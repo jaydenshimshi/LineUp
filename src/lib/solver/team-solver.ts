@@ -157,12 +157,18 @@ function calculateSolutionScore(teams: Player[][]): SolutionScore {
       }
     }
 
+    // GK checks - penalize both missing GK and multiple GKs
     if (posCounts.GK === 0) {
       const canCover = team.some(p => p.altPosition === 'GK');
       if (!canCover) {
         positionScore += 100;
         issues.push('No GK!');
       }
+    } else if (posCounts.GK >= 2) {
+      // Heavy penalty for multiple GKs - teams should have exactly 1 GK
+      const excess = posCounts.GK - 1;
+      positionScore += 80 * excess; // Heavier than field position clustering
+      issues.push(`${posCounts.GK}x GK`);
     }
 
     teamIssues.push(issues);
