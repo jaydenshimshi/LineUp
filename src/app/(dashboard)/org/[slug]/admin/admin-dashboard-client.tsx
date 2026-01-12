@@ -62,6 +62,8 @@ interface AdminDashboardClientProps {
   activeAnnouncements: number;
   existingTeamRun: TeamRun | null;
   checkedInPlayers: CheckedInPlayer[];
+  sessionDate: string; // yyyy-MM-dd format
+  sessionLabel: string; // e.g., "Today (Mon, Jan 13)" or "Tomorrow (Tue, Jan 14)"
 }
 
 const teamColors = {
@@ -117,12 +119,13 @@ export function AdminDashboardClient({
   activeAnnouncements,
   existingTeamRun,
   checkedInPlayers,
+  sessionDate,
+  sessionLabel,
 }: AdminDashboardClientProps) {
   const router = useRouter();
   const [isGenerating, setIsGenerating] = useState(false);
   const [teamStatus, setTeamStatus] = useState(initialTeamStatus);
   const [currentTeamRun, setCurrentTeamRun] = useState<TeamRun | null>(existingTeamRun);
-  const today = format(new Date(), 'yyyy-MM-dd');
 
   const totalPlayers = playerCount + manualPlayerCount;
   const canGenerate = todayCheckins >= 6;
@@ -148,7 +151,7 @@ export function AdminDashboardClient({
   // Fetch team run data
   const fetchTeamRun = async () => {
     try {
-      const response = await fetch(`/api/teams?organization_id=${orgId}&date=${today}`);
+      const response = await fetch(`/api/teams?organization_id=${orgId}&date=${sessionDate}`);
       if (response.ok) {
         const data = await response.json();
         if (data.teamRun) {
@@ -169,7 +172,7 @@ export function AdminDashboardClient({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           organization_id: orgId,
-          date: today,
+          date: sessionDate,
           players: checkedInPlayers.map((p) => ({
             id: p.id,
             name: p.full_name,

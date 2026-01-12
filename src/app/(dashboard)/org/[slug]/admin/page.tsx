@@ -1,11 +1,12 @@
 /**
  * Admin Dashboard Overview
  * Central hub for organization admins
+ * Uses session date (6 AM cutoff)
  */
 
 import { redirect } from 'next/navigation';
-import { format } from 'date-fns';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
+import { getSessionDate } from '@/lib/session-date';
 import { AdminDashboardClient } from './admin-dashboard-client';
 import type { Metadata } from 'next';
 
@@ -23,7 +24,9 @@ interface PageProps {
 export default async function AdminDashboardPage({ params }: PageProps) {
   const { slug } = await params;
   const supabase = await createClient();
-  const today = format(new Date(), 'yyyy-MM-dd');
+
+  // Use session date (6 AM cutoff) for all data
+  const { sessionDateString, displayLabel } = getSessionDate();
 
   const {
     data: { user },
@@ -88,7 +91,7 @@ export default async function AdminDashboardPage({ params }: PageProps) {
     .from('checkins')
     .select('*', { count: 'exact', head: true })
     .eq('organization_id', orgData.id)
-    .eq('date', today)
+    .eq('date', sessionDateString)
     .eq('status', 'checked_in');
 
   // Count only players rated by the current admin (not all admins)
@@ -117,7 +120,7 @@ export default async function AdminDashboardPage({ params }: PageProps) {
       )
     `)
     .eq('organization_id', orgData.id)
-    .eq('date', today)
+    .eq('date', sessionDateString)
     .single();
 
   interface TeamAssignment {
@@ -162,7 +165,7 @@ export default async function AdminDashboardPage({ params }: PageProps) {
       )
     `)
     .eq('organization_id', orgData.id)
-    .eq('date', today)
+    .eq('date', sessionDateString)
     .eq('status', 'checked_in');
 
   interface CheckinWithPlayer {
@@ -219,6 +222,8 @@ export default async function AdminDashboardPage({ params }: PageProps) {
       activeAnnouncements={activeAnnouncements || 0}
       existingTeamRun={existingTeamRun}
       checkedInPlayers={checkedInPlayers}
+      sessionDate={sessionDateString}
+      sessionLabel={displayLabel}
     />
   );
 }

@@ -2,36 +2,16 @@
 
 /**
  * Teams Generation Client Component
- * Beautiful UI for generating and managing teams with drag-drop support
+ * Uses dropdown selectors for team assignment (mobile-friendly)
  */
 
 import { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { format } from 'date-fns';
-import {
-  DndContext,
-  DragEndEvent,
-  DragOverlay,
-  DragStartEvent,
-  closestCenter,
-  PointerSensor,
-  TouchSensor,
-  KeyboardSensor,
-  useSensor,
-  useSensors,
-} from '@dnd-kit/core';
-import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
-import {
-  SortableContext,
-  useSortable,
-  verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
 import { Button } from '@/components/ui/button';
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
@@ -48,6 +28,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { ChevronDownIcon, Check } from 'lucide-react';
 
 interface Player {
   id: string;
@@ -114,32 +95,24 @@ const teamColors = {
     border: 'border-red-300 dark:border-red-900',
     text: 'text-red-700 dark:text-red-400',
     badge: 'bg-red-500 text-white',
-    header: 'bg-red-100 dark:bg-red-900/50',
-    dropzone: 'ring-red-400',
   },
   blue: {
     bg: 'bg-blue-50 dark:bg-blue-950/30',
     border: 'border-blue-300 dark:border-blue-900',
     text: 'text-blue-700 dark:text-blue-400',
     badge: 'bg-blue-500 text-white',
-    header: 'bg-blue-100 dark:bg-blue-900/50',
-    dropzone: 'ring-blue-400',
   },
   yellow: {
     bg: 'bg-yellow-50 dark:bg-yellow-950/30',
     border: 'border-yellow-300 dark:border-yellow-900',
     text: 'text-yellow-700 dark:text-yellow-400',
     badge: 'bg-yellow-500 text-white',
-    header: 'bg-yellow-100 dark:bg-yellow-900/50',
-    dropzone: 'ring-yellow-400',
   },
   sub: {
     bg: 'bg-gray-50 dark:bg-gray-900/30',
     border: 'border-gray-300 dark:border-gray-700',
     text: 'text-gray-700 dark:text-gray-400',
     badge: 'bg-gray-500 text-white',
-    header: 'bg-gray-100 dark:bg-gray-800',
-    dropzone: 'ring-gray-400',
   },
 };
 
@@ -164,158 +137,119 @@ const sortByPosition = (a: TeamAssignment, b: TeamAssignment) => {
   return posA - posB;
 };
 
-// Draggable player card component
-function DraggablePlayerCard({
-  assignment,
-  teamColor: _teamColor,
-  isLocked,
+// Team selector dropdown component
+function TeamSelector({
+  value,
+  onChange,
+  disabled,
+  showYellow,
 }: {
-  assignment: TeamAssignment;
-  teamColor: TeamColor;
-  isLocked: boolean;
+  value: TeamColor;
+  onChange: (value: TeamColor) => void;
+  disabled?: boolean;
+  showYellow?: boolean;
 }) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({
-    id: assignment.player_id,
-    disabled: isLocked,
-  });
+  const [isFocused, setIsFocused] = useState(false);
+  const colors = teamColors[value];
 
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
+  const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    onChange(e.target.value as TeamColor);
   };
 
   return (
+    <div className="relative">
+      <div
+        className={cn(
+          "relative overflow-hidden rounded-lg transition-all duration-200 border-2",
+          isFocused ? "border-primary shadow-md" : colors.border,
+          colors.bg,
+          disabled && "opacity-50 cursor-not-allowed"
+        )}
+      >
+        <select
+          value={value}
+          onChange={handleChange}
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
+          disabled={disabled}
+          className={cn(
+            "w-full h-9 appearance-none bg-transparent cursor-pointer",
+            "outline-none border-none pl-3 pr-8",
+            "text-[14px] font-medium capitalize",
+            colors.text,
+            "disabled:cursor-not-allowed"
+          )}
+        >
+          <option value="red">Red</option>
+          <option value="blue">Blue</option>
+          {showYellow && <option value="yellow">Yellow</option>}
+          <option value="sub">Sub</option>
+        </select>
+        <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">
+          <ChevronDownIcon className={cn("w-4 h-4", colors.text)} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Player card with team dropdown
+function PlayerTeamCard({
+  assignment,
+  onTeamChange,
+  isLocked,
+  showYellow,
+}: {
+  assignment: TeamAssignment;
+  onTeamChange: (playerId: string, newTeam: TeamColor) => void;
+  isLocked: boolean;
+  showYellow: boolean;
+}) {
+  const colors = teamColors[assignment.team_color as TeamColor];
+
+  return (
     <div
-      ref={setNodeRef}
-      style={{
-        ...style,
-        touchAction: isLocked ? 'auto' : 'none', // Prevent scroll while dragging
-      }}
-      {...attributes}
-      {...listeners}
       className={cn(
-        'flex items-center justify-between py-2 px-3 rounded-lg border border-border/30 bg-background/50 select-none',
-        !isLocked && 'cursor-grab active:cursor-grabbing hover:bg-background touch-manipulation',
-        isDragging && 'ring-2 ring-primary shadow-lg z-10'
+        "flex items-center justify-between p-3 rounded-lg border-2 transition-all",
+        colors.bg,
+        colors.border
       )}
     >
-      <div className="flex items-center gap-2">
-        <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-xs font-medium">
+      <div className="flex items-center gap-3 min-w-0 flex-1">
+        <div className="w-9 h-9 rounded-full bg-background/80 flex items-center justify-center text-xs font-medium flex-shrink-0">
           {assignment.players.full_name
             .split(' ')
             .map((n) => n[0])
             .join('')
             .slice(0, 2)}
         </div>
-        <div className="flex flex-col">
-          <span className="font-medium text-sm">
-            {assignment.players.full_name}
-          </span>
-          <StarRating rating={assignment.rating} />
+        <div className="min-w-0">
+          <p className="text-sm font-medium truncate">{assignment.players.full_name}</p>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">
+              {positionLabels[assignment.players.main_position]}
+            </span>
+            <StarRating rating={assignment.rating} />
+          </div>
         </div>
       </div>
-      <div className="flex flex-col items-end">
-        <span className="text-xs text-muted-foreground">
-          {positionLabels[assignment.players.main_position]}
-        </span>
-        {assignment.players.alt_position && (
-          <span className="text-[10px] text-muted-foreground/60">
-            alt: {positionLabels[assignment.players.alt_position]}
-          </span>
-        )}
+      <div className="flex-shrink-0 w-24">
+        <TeamSelector
+          value={assignment.team_color as TeamColor}
+          onChange={(newTeam) => onTeamChange(assignment.player_id, newTeam)}
+          disabled={isLocked}
+          showYellow={showYellow}
+        />
       </div>
     </div>
   );
 }
 
-// Team drop zone component
-function TeamDropZone({
-  color,
-  assignments,
-  isLocked,
-  isOver,
-}: {
-  color: TeamColor;
-  assignments: TeamAssignment[];
-  isLocked: boolean;
-  isOver: boolean;
-}) {
-  const colors = teamColors[color];
-
-  return (
-    <Card
-      className={cn(
-        colors.bg,
-        colors.border,
-        'border-2 overflow-hidden transition-all',
-        isOver && `ring-2 ${colors.dropzone}`
-      )}
-    >
-      <div
-        className={cn(
-          colors.header,
-          'px-4 py-3 flex items-center justify-between'
-        )}
-      >
-        <h3 className={cn(colors.text, 'font-bold text-lg capitalize')}>
-          {color === 'sub' ? 'Substitutes' : `Team ${color}`}
-        </h3>
-        <Badge className={colors.badge}>{assignments.length} players</Badge>
-      </div>
-      <CardContent className="pt-4 min-h-[100px]">
-        <SortableContext
-          items={assignments.map((a) => a.player_id)}
-          strategy={verticalListSortingStrategy}
-        >
-          <div className="space-y-2">
-            {assignments.map((assignment) => (
-              <DraggablePlayerCard
-                key={assignment.id}
-                assignment={assignment}
-                teamColor={color}
-                isLocked={isLocked}
-              />
-            ))}
-            {assignments.length === 0 && (
-              <div className="text-center py-4 text-muted-foreground text-sm border-2 border-dashed rounded-lg">
-                Drop players here
-              </div>
-            )}
-          </div>
-        </SortableContext>
-        {/* Team Average Rating */}
-        {assignments.length > 0 && (() => {
-          const avgRating = getTeamAverageRating(assignments);
-          if (avgRating === null) return null;
-          return (
-            <div className="mt-3 pt-3 border-t border-border/50 flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">Team Rating</span>
-              <span className="text-sm font-semibold text-amber-600 dark:text-amber-400">
-                {avgRating.toFixed(1)} / 5
-              </span>
-            </div>
-          );
-        })()}
-      </CardContent>
-    </Card>
-  );
-}
-
 export function TeamsClient({
   orgId,
-  orgSlug: _orgSlug,
   date,
   checkedInPlayers,
   existingTeamRun,
-  adminId: _adminId,
 }: TeamsClientProps) {
   const router = useRouter();
   const [isGenerating, setIsGenerating] = useState(false);
@@ -327,15 +261,8 @@ export function TeamsClient({
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
-  const [activeId, setActiveId] = useState<string | null>(null);
-  const [isMounted, setIsMounted] = useState(false);
 
-  // Prevent hydration mismatch with DndKit
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
-
-  // Local state for team assignments (for drag-drop)
+  // Local state for team assignments
   const [localTeams, setLocalTeams] = useState<Record<TeamColor, TeamAssignment[]>>(() => {
     const teams: Record<TeamColor, TeamAssignment[]> = {
       red: [],
@@ -358,7 +285,7 @@ export function TeamsClient({
     return teams;
   });
 
-  // Update localTeams when existingTeamRun changes (e.g., after regeneration)
+  // Update localTeams when existingTeamRun changes
   useEffect(() => {
     const teams: Record<TeamColor, TeamAssignment[]> = {
       red: [],
@@ -373,7 +300,6 @@ export function TeamsClient({
           teams[color].push(assignment);
         }
       });
-      // Sort each team by position
       Object.keys(teams).forEach((color) => {
         teams[color as TeamColor].sort(sortByPosition);
       });
@@ -382,132 +308,57 @@ export function TeamsClient({
     setHasChanges(false);
   }, [existingTeamRun]);
 
-  // Configure sensors for pointer, touch, and keyboard accessibility
-  // Higher delay and tolerance prevents accidental drags while scrolling
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 10, // 10px movement before drag starts
-      },
-    }),
-    useSensor(TouchSensor, {
-      activationConstraint: {
-        delay: 400, // 400ms delay - must hold before drag activates
-        tolerance: 8, // Allow 8px movement during delay without canceling
-      },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
-  );
-
   const canGenerate = checkedInPlayers.length >= 6;
-  const hasExistingTeams =
-    existingTeamRun && existingTeamRun.team_assignments.length > 0;
+  const hasExistingTeams = existingTeamRun && existingTeamRun.team_assignments.length > 0;
   const isPublished = existingTeamRun?.status === 'published';
   const isLocked = existingTeamRun?.status === 'locked';
+  const showYellow = localTeams.yellow.length > 0 || checkedInPlayers.length >= 21;
 
-  // Find which team a player is in
-  const findPlayerTeam = useCallback(
-    (playerId: string): TeamColor | null => {
-      for (const [color, assignments] of Object.entries(localTeams)) {
-        if (assignments.some((a) => a.player_id === playerId)) {
-          return color as TeamColor;
-        }
-      }
-      return null;
-    },
-    [localTeams]
-  );
+  // All players flat list for display
+  const allAssignments = [
+    ...localTeams.red,
+    ...localTeams.blue,
+    ...localTeams.yellow,
+    ...localTeams.sub,
+  ].sort((a, b) => a.players.full_name.localeCompare(b.players.full_name));
 
-  // Find the active player for drag overlay
-  const activePlayer = activeId
-    ? Object.values(localTeams)
-        .flat()
-        .find((a) => a.player_id === activeId)
-    : null;
-
-  const handleDragStart = (event: DragStartEvent) => {
-    setActiveId(event.active.id as string);
-  };
-
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    setActiveId(null);
-
-    if (!over) return;
-
-    const activePlayerId = active.id as string;
-    const overId = over.id as string;
-
-    // Find current team of dragged player
-    const sourceTeam = findPlayerTeam(activePlayerId);
-    if (!sourceTeam) return;
-
-    // Determine target team
-    let targetTeam: TeamColor;
-
-    // Check if dropped over a team zone (the team color itself)
-    if (['red', 'blue', 'yellow', 'sub'].includes(overId)) {
-      targetTeam = overId as TeamColor;
-    } else {
-      // Dropped over another player - find their team
-      const overPlayerTeam = findPlayerTeam(overId);
-      if (!overPlayerTeam) return;
-      targetTeam = overPlayerTeam;
-    }
-
-    // If same team, no change
-    if (sourceTeam === targetTeam) return;
-
-    // Move player to new team
+  const handleTeamChange = useCallback((playerId: string, newTeam: TeamColor) => {
     setLocalTeams((prev) => {
       const newTeams = { ...prev };
-      const playerToMove = newTeams[sourceTeam].find(
-        (a) => a.player_id === activePlayerId
-      );
-      if (!playerToMove) return prev;
 
-      // Remove from source
-      newTeams[sourceTeam] = newTeams[sourceTeam].filter(
-        (a) => a.player_id !== activePlayerId
-      );
-
-      // Determine bench_team for subs
-      let benchTeam: string | null = null;
-      if (targetTeam === 'sub') {
-        // If moving to sub, assign bench based on source team or default to red
-        if (sourceTeam !== 'sub' && sourceTeam !== 'yellow') {
-          benchTeam = sourceTeam; // Use their previous team as bench
-        } else if (sourceTeam === 'yellow') {
-          benchTeam = 'yellow';
-        } else {
-          benchTeam = 'red'; // Default to red bench
+      // Find and remove player from current team
+      let playerAssignment: TeamAssignment | undefined;
+      for (const [color, assignments] of Object.entries(newTeams)) {
+        const idx = assignments.findIndex((a) => a.player_id === playerId);
+        if (idx !== -1) {
+          playerAssignment = assignments[idx];
+          newTeams[color as TeamColor] = assignments.filter((a) => a.player_id !== playerId);
+          break;
         }
       }
 
-      // Add to target with updated team_color and bench_team
-      newTeams[targetTeam] = [
-        ...newTeams[targetTeam],
+      if (!playerAssignment) return prev;
+
+      // Add to new team
+      newTeams[newTeam] = [
+        ...newTeams[newTeam],
         {
-          ...playerToMove,
-          team_color: targetTeam,
-          bench_team: benchTeam,
+          ...playerAssignment,
+          team_color: newTeam,
+          bench_team: newTeam === 'sub' ? playerAssignment.team_color : null,
         },
-      ];
+      ].sort(sortByPosition);
 
       return newTeams;
     });
-
     setHasChanges(true);
-  };
+  }, []);
 
   const handleSaveChanges = async () => {
     if (!existingTeamRun) return;
 
     setIsSaving(true);
     try {
-      // Collect all assignments with their new team colors and bench teams
       const assignments = Object.entries(localTeams).flatMap(
         ([color, players]) =>
           players.map((p) => ({
@@ -569,8 +420,7 @@ export function TeamsClient({
         const data = await response.json();
         toast.error(data.error || 'Failed to generate teams');
       }
-    } catch (error) {
-      console.error('Generate error:', error);
+    } catch {
       toast.error('Something went wrong');
     } finally {
       setIsGenerating(false);
@@ -584,11 +434,10 @@ export function TeamsClient({
     try {
       const response = await fetch(`/api/teams/${existingTeamRun.id}/publish`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
       });
 
       if (response.ok) {
-        toast.success('Teams published! Players can now see their assignments.');
+        toast.success('Teams published!');
         setShowPublishDialog(false);
         router.refresh();
       } else {
@@ -609,11 +458,10 @@ export function TeamsClient({
     try {
       const response = await fetch(`/api/teams/${existingTeamRun.id}/lock`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
       });
 
       if (response.ok) {
-        toast.success('Teams locked! No more changes can be made.');
+        toast.success('Teams locked!');
         setShowLockDialog(false);
         router.refresh();
       } else {
@@ -634,7 +482,6 @@ export function TeamsClient({
     try {
       const response = await fetch(`/api/teams/${existingTeamRun.id}`, {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
       });
 
       if (response.ok) {
@@ -652,135 +499,57 @@ export function TeamsClient({
     }
   };
 
-  // Parse date correctly to avoid timezone issues (YYYY-MM-DD string -> local date)
+  // Parse date correctly
   const [year, month, day] = date.split('-').map(Number);
   const displayDate = format(new Date(year, month - 1, day), 'EEEE, MMMM d');
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-muted/30 to-background">
-      <div className="container mx-auto py-6 px-4 max-w-4xl">
+      <div className="container mx-auto py-4 px-3 max-w-lg">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold">Generate Teams</h1>
-          <p className="text-muted-foreground mt-1">{displayDate}</p>
+        <div className="mb-4">
+          <h1 className="text-xl font-bold">Generate Teams</h1>
+          <p className="text-sm text-muted-foreground">{displayDate}</p>
         </div>
 
         {/* Status Card */}
-        <Card className="mb-8">
-          <CardContent className="pt-6">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <Card className="mb-4">
+          <CardContent className="pt-4 pb-4">
+            <div className="flex items-center justify-between gap-3">
               <div>
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-3xl font-bold">
-                    {checkedInPlayers.length}
-                  </span>
-                  <span className="text-muted-foreground">
-                    players checked in
-                  </span>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-2xl font-bold">{checkedInPlayers.length}</span>
+                  <span className="text-sm text-muted-foreground">players</span>
                 </div>
-                <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-1.5 flex-wrap">
                   {canGenerate ? (
-                    <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
-                      Ready to generate
+                    <Badge className="text-[10px] bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                      Ready
                     </Badge>
                   ) : (
-                    <Badge variant="secondary">
-                      Need {6 - checkedInPlayers.length} more players
+                    <Badge variant="secondary" className="text-[10px]">
+                      Need {6 - checkedInPlayers.length} more
                     </Badge>
                   )}
-                  {isLocked && (
-                    <Badge className="bg-red-500 text-white">Locked</Badge>
-                  )}
-                  {isPublished && !isLocked && (
-                    <Badge className="bg-primary text-primary-foreground">
-                      Published
-                    </Badge>
-                  )}
-                  {hasExistingTeams && !isPublished && !isLocked && (
-                    <Badge variant="outline">Draft</Badge>
-                  )}
-                  {hasChanges && (
-                    <Badge className="bg-orange-500 text-white">
-                      Unsaved changes
-                    </Badge>
-                  )}
+                  {isLocked && <Badge className="text-[10px] bg-red-500">Locked</Badge>}
+                  {isPublished && !isLocked && <Badge className="text-[10px]">Published</Badge>}
+                  {hasChanges && <Badge className="text-[10px] bg-orange-500">Unsaved</Badge>}
                 </div>
               </div>
-              <div className="flex gap-2 flex-wrap">
+              <div className="flex gap-2">
                 {hasChanges && !isLocked && (
-                  <Button
-                    onClick={handleSaveChanges}
-                    disabled={isSaving}
-                    variant="default"
-                    size="lg"
-                  >
-                    {isSaving ? 'Saving...' : 'Save Changes'}
+                  <Button onClick={handleSaveChanges} disabled={isSaving} size="sm">
+                    {isSaving ? '...' : 'Save'}
                   </Button>
                 )}
                 {!isLocked && (
                   <Button
                     onClick={handleGenerate}
                     disabled={!canGenerate || isGenerating}
-                    size="lg"
+                    size="sm"
                     variant={hasChanges ? 'outline' : 'default'}
                   >
-                    {isGenerating ? (
-                      <>
-                        <svg
-                          className="animate-spin -ml-1 mr-2 h-4 w-4"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                        >
-                          <circle
-                            className="opacity-25"
-                            cx="12"
-                            cy="12"
-                            r="10"
-                            stroke="currentColor"
-                            strokeWidth="4"
-                          />
-                          <path
-                            className="opacity-75"
-                            fill="currentColor"
-                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                          />
-                        </svg>
-                        Generating...
-                      </>
-                    ) : hasExistingTeams ? (
-                      'Regenerate'
-                    ) : (
-                      'Generate Teams'
-                    )}
-                  </Button>
-                )}
-                {hasExistingTeams && !isPublished && !isLocked && (
-                  <Button
-                    variant="outline"
-                    size="lg"
-                    onClick={() => setShowPublishDialog(true)}
-                    disabled={hasChanges}
-                  >
-                    Publish
-                  </Button>
-                )}
-                {isPublished && !isLocked && (
-                  <Button
-                    variant="destructive"
-                    size="lg"
-                    onClick={() => setShowLockDialog(true)}
-                  >
-                    Lock Teams
-                  </Button>
-                )}
-                {hasExistingTeams && !isLocked && (
-                  <Button
-                    variant="ghost"
-                    size="lg"
-                    onClick={() => setShowDeleteDialog(true)}
-                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                  >
-                    Delete
+                    {isGenerating ? '...' : hasExistingTeams ? 'Regen' : 'Generate'}
                   </Button>
                 )}
               </div>
@@ -788,178 +557,110 @@ export function TeamsClient({
           </CardContent>
         </Card>
 
-        {/* Checked-in Players List */}
-        {!hasExistingTeams && (
-          <Card className="mb-8">
-            <CardHeader>
-              <CardTitle className="text-lg">Checked-in Players</CardTitle>
-              <CardDescription>
-                These players will be assigned to teams
-              </CardDescription>
+        {/* Action Buttons */}
+        {hasExistingTeams && (
+          <div className="flex gap-2 mb-4">
+            {!isPublished && !isLocked && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowPublishDialog(true)}
+                disabled={hasChanges}
+                className="flex-1"
+              >
+                Publish
+              </Button>
+            )}
+            {isPublished && !isLocked && (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => setShowLockDialog(true)}
+                className="flex-1"
+              >
+                Lock
+              </Button>
+            )}
+            {!isLocked && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowDeleteDialog(true)}
+                className="text-destructive"
+              >
+                Delete
+              </Button>
+            )}
+          </div>
+        )}
+
+        {/* Team Summary */}
+        {hasExistingTeams && (
+          <div className="grid grid-cols-4 gap-2 mb-4">
+            {(['red', 'blue', 'yellow', 'sub'] as const)
+              .filter((color) => color !== 'yellow' || localTeams.yellow.length > 0)
+              .map((color) => {
+                const count = localTeams[color].length;
+                const avgRating = getTeamAverageRating(localTeams[color]);
+                const colors = teamColors[color];
+                return (
+                  <Card key={color} className={cn("overflow-hidden", colors.bg, colors.border)}>
+                    <CardContent className="p-2 text-center">
+                      <p className={cn("text-xs font-medium capitalize", colors.text)}>
+                        {color === 'sub' ? 'Subs' : color}
+                      </p>
+                      <p className="text-lg font-bold">{count}</p>
+                      {avgRating !== null && (
+                        <p className="text-[10px] text-amber-600">{avgRating.toFixed(1)}★</p>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+          </div>
+        )}
+
+        {/* Players List with Dropdowns */}
+        {hasExistingTeams && (
+          <Card>
+            <CardHeader className="pb-2 pt-3 px-3">
+              <CardTitle className="text-sm">Player Assignments</CardTitle>
             </CardHeader>
-            <CardContent>
-              {checkedInPlayers.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
-                  {checkedInPlayers.map((player) => (
-                    <Badge
-                      key={player.id}
-                      variant="secondary"
-                      className="py-1.5 px-3 flex items-center gap-2"
-                    >
-                      <span>{player.full_name}</span>
-                      <span className="text-xs opacity-60">
-                        {positionLabels[player.main_position]}
-                      </span>
-                      <span className="text-xs bg-background/50 px-1 rounded">
-                        {'⭐'.repeat(player.rating)}
-                      </span>
-                    </Badge>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-muted-foreground text-center py-8">
-                  No players have checked in yet
-                </p>
-              )}
+            <CardContent className="p-3 pt-0 space-y-2">
+              {allAssignments.map((assignment) => (
+                <PlayerTeamCard
+                  key={assignment.id}
+                  assignment={assignment}
+                  onTeamChange={handleTeamChange}
+                  isLocked={!!isLocked}
+                  showYellow={showYellow}
+                />
+              ))}
             </CardContent>
           </Card>
         )}
 
-        {/* Teams Display with Drag and Drop Lists */}
-        {hasExistingTeams && !isMounted && (
-          <Card className="p-8">
-            <div className="flex items-center justify-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-              <span className="ml-3 text-muted-foreground">Loading teams...</span>
-            </div>
-          </Card>
-        )}
-        {hasExistingTeams && isMounted && (
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragStart={handleDragStart}
-            onDragEnd={handleDragEnd}
-          >
-            <div className="space-y-6">
-              {/* Main Teams Grid */}
-              <div className="grid md:grid-cols-2 gap-6">
-                {/* Team Red */}
-                <TeamDropZone
-                  color="red"
-                  assignments={localTeams.red}
-                  isLocked={!!isLocked}
-                  isOver={false}
-                />
-
-                {/* Team Blue */}
-                <TeamDropZone
-                  color="blue"
-                  assignments={localTeams.blue}
-                  isLocked={!!isLocked}
-                  isOver={false}
-                />
-              </div>
-
-              {/* Team Yellow - only if exists */}
-              {localTeams.yellow.length > 0 && (
-                <div className="max-w-md mx-auto">
-                  <TeamDropZone
-                    color="yellow"
-                    assignments={localTeams.yellow}
-                    isLocked={!!isLocked}
-                    isOver={false}
-                  />
+        {/* Checked-in Players (before generation) */}
+        {!hasExistingTeams && (
+          <Card>
+            <CardHeader className="pb-2 pt-3 px-3">
+              <CardTitle className="text-sm">Checked-in Players</CardTitle>
+            </CardHeader>
+            <CardContent className="p-3 pt-0">
+              {checkedInPlayers.length > 0 ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {checkedInPlayers.map((player) => (
+                    <Badge key={player.id} variant="secondary" className="text-xs py-1">
+                      {player.full_name}
+                      <span className="ml-1 opacity-60">{positionLabels[player.main_position]}</span>
+                    </Badge>
+                  ))}
                 </div>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-6">
+                  No players checked in yet
+                </p>
               )}
-
-              {/* Substitutes */}
-              {localTeams.sub.length > 0 && (
-                <TeamDropZone
-                  color="sub"
-                  assignments={localTeams.sub}
-                  isLocked={!!isLocked}
-                  isOver={false}
-                />
-              )}
-
-              {/* Balance Stats */}
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <span>📊</span> Balance Stats
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
-                    {/* Only show stats for teams with players */}
-                    {(['red', 'blue', 'yellow', 'sub'] as const)
-                      .filter((color) => localTeams[color].length > 0)
-                      .map((color) => {
-                        const teamPlayers = localTeams[color];
-                        const avgRating = getTeamAverageRating(teamPlayers);
-
-                        return (
-                          <div key={color}>
-                            <p
-                              className={cn(
-                                'font-semibold capitalize',
-                                teamColors[color].text
-                              )}
-                            >
-                              {color === 'sub' ? 'Subs' : color}
-                            </p>
-                            <p className="text-2xl font-bold">
-                              {teamPlayers.length}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              players
-                            </p>
-                            {avgRating !== null && (
-                              <p className="text-sm font-medium text-amber-600 dark:text-amber-400">
-                                Avg: {avgRating.toFixed(1)}★
-                              </p>
-                            )}
-                          </div>
-                        );
-                      })}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Drag Overlay */}
-            <DragOverlay>
-              {activePlayer && (
-                <div className="flex items-center justify-between py-2 px-3 rounded-lg border border-primary bg-background shadow-lg">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-medium">
-                      {activePlayer.players.full_name
-                        .split(' ')
-                        .map((n) => n[0])
-                        .join('')
-                        .slice(0, 2)}
-                    </div>
-                    <span className="font-medium text-sm">
-                      {activePlayer.players.full_name}
-                    </span>
-                  </div>
-                </div>
-              )}
-            </DragOverlay>
-          </DndContext>
-        )}
-
-        {/* No players message */}
-        {!canGenerate && checkedInPlayers.length === 0 && (
-          <Card className="text-center py-12">
-            <CardContent>
-              <div className="text-6xl mb-4">📅</div>
-              <h3 className="text-xl font-semibold mb-2">No check-ins yet</h3>
-              <p className="text-muted-foreground max-w-sm mx-auto">
-                Players need to check in for today before you can generate
-                teams.
-              </p>
             </CardContent>
           </Card>
         )}
@@ -971,14 +672,13 @@ export function TeamsClient({
           <AlertDialogHeader>
             <AlertDialogTitle>Publish teams?</AlertDialogTitle>
             <AlertDialogDescription>
-              Once published, all players will be able to see their team
-              assignments. You can still regenerate teams after publishing.
+              Players will be able to see their team assignments.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handlePublish} disabled={isPublishing}>
-              {isPublishing ? 'Publishing...' : 'Publish Teams'}
+              {isPublishing ? 'Publishing...' : 'Publish'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -990,9 +690,7 @@ export function TeamsClient({
           <AlertDialogHeader>
             <AlertDialogTitle>Lock teams?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently lock the teams for today. Once locked, you
-              will not be able to regenerate or make changes. This action cannot
-              be undone.
+              This cannot be undone. No more changes will be allowed.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1000,9 +698,9 @@ export function TeamsClient({
             <AlertDialogAction
               onClick={handleLock}
               disabled={isLocking}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className="bg-destructive text-destructive-foreground"
             >
-              {isLocking ? 'Locking...' : 'Lock Teams'}
+              {isLocking ? 'Locking...' : 'Lock'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1014,8 +712,7 @@ export function TeamsClient({
           <AlertDialogHeader>
             <AlertDialogTitle>Delete teams?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will delete the current team assignments for today. You can
-              regenerate new teams afterwards.
+              This will remove all team assignments. You can regenerate afterwards.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1023,9 +720,9 @@ export function TeamsClient({
             <AlertDialogAction
               onClick={handleDelete}
               disabled={isDeleting}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className="bg-destructive text-destructive-foreground"
             >
-              {isDeleting ? 'Deleting...' : 'Delete Teams'}
+              {isDeleting ? 'Deleting...' : 'Delete'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

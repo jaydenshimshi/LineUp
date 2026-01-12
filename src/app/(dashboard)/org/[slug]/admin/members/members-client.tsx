@@ -441,88 +441,71 @@ function MemberCard({
   onRemove: () => void;
 }) {
   const displayName = member.players?.full_name || member.users?.email?.split('@')[0] || 'Unknown';
-  const hasProfile = member.players?.profile_completed;
+  const email = member.users?.email || '';
+
+  // Handle action selection with native select (mobile-friendly)
+  const handleAction = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const action = e.target.value;
+    if (action === 'owner') onChangeRole('owner');
+    else if (action === 'admin') onChangeRole('admin');
+    else if (action === 'member') onChangeRole('member');
+    else if (action === 'remove') onRemove();
+    e.target.value = ''; // Reset select
+  };
 
   return (
     <Card>
-      <CardContent className="py-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center text-sm font-medium">
+      <CardContent className="py-2.5 px-3">
+        <div className="flex items-center gap-2">
+          {/* Avatar - smaller */}
+          <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-xs font-medium flex-shrink-0">
             {displayName.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()}
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <p className="font-medium">{displayName}</p>
+
+          {/* Name & Email - compact */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5">
+              <p className="text-sm font-medium truncate">{displayName}</p>
               {isCurrentUser && (
-                <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                <Badge variant="outline" className="text-[9px] px-1 py-0 h-4">
                   You
                 </Badge>
               )}
             </div>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <span>{member.users?.email || 'No email'}</span>
-              {!hasProfile && (
-                <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                  No profile
-                </Badge>
-              )}
-            </div>
+            <p className="text-[11px] text-muted-foreground truncate">{email}</p>
           </div>
-        </div>
 
-        <div className="flex items-center gap-2">
-          <Badge className={roleColors[member.role]} variant="secondary">
+          {/* Role badge */}
+          <Badge className={`${roleColors[member.role]} text-[10px] h-5 px-1.5`} variant="secondary">
             {member.role}
           </Badge>
 
+          {/* Action select - native dropdown (mobile-friendly) */}
           {canManage && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
-                  </svg>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {/* Promote to Owner - only owners can do this */}
-                {isOwner && member.role !== 'owner' && (
-                  <DropdownMenuItem onClick={() => onChangeRole('owner')}>
-                    <span className="mr-2">👑</span> Promote to Owner
-                  </DropdownMenuItem>
-                )}
-                {/* Make Admin - for regular members */}
-                {member.role === 'member' && (
-                  <DropdownMenuItem onClick={() => onChangeRole('admin')}>
-                    <span className="mr-2">🔑</span> Make Admin
-                  </DropdownMenuItem>
-                )}
-                {/* Demote Admin - for admins */}
-                {member.role === 'admin' && (
-                  <DropdownMenuItem onClick={() => onChangeRole('member')}>
-                    <span className="mr-2">👤</span> Remove Admin
-                  </DropdownMenuItem>
-                )}
-                {/* Demote Owner - only owners can demote other owners */}
-                {isOwner && member.role === 'owner' && (
-                  <>
-                    <DropdownMenuItem onClick={() => onChangeRole('admin')}>
-                      <span className="mr-2">🔑</span> Demote to Admin
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => onChangeRole('member')}>
-                      <span className="mr-2">👤</span> Demote to Member
-                    </DropdownMenuItem>
-                  </>
-                )}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={onRemove}
-                  className="text-destructive focus:text-destructive"
-                >
-                  Remove from Group
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <select
+              onChange={handleAction}
+              defaultValue=""
+              className="h-7 w-7 appearance-none bg-transparent border rounded-md text-center cursor-pointer text-muted-foreground hover:text-foreground"
+              aria-label="Member actions"
+            >
+              <option value="" disabled>⋮</option>
+              {isOwner && member.role !== 'owner' && (
+                <option value="owner">👑 Make Owner</option>
+              )}
+              {member.role === 'member' && (
+                <option value="admin">🔑 Make Admin</option>
+              )}
+              {member.role === 'admin' && (
+                <option value="member">👤 Remove Admin</option>
+              )}
+              {isOwner && member.role === 'owner' && (
+                <>
+                  <option value="admin">🔑 Demote to Admin</option>
+                  <option value="member">👤 Demote to Member</option>
+                </>
+              )}
+              <option value="remove">🗑️ Remove</option>
+            </select>
           )}
         </div>
       </CardContent>
