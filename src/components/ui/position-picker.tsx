@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { cn } from "@/lib/utils"
-import { ChevronDownIcon } from "lucide-react"
+import { ChevronDownIcon, Check } from "lucide-react"
 
 export interface PositionPickerProps {
   value: string | null | undefined
@@ -15,8 +15,9 @@ export interface PositionPickerProps {
 }
 
 /**
- * Simple position picker using native select
- * Works reliably on all devices without scroll issues
+ * Modern position picker with native select for reliability
+ * Features smooth animations and modern styling while maintaining
+ * mobile-friendly behavior (scroll prevention, iOS zoom prevention)
  */
 export function PositionPicker({
   value,
@@ -26,6 +27,8 @@ export function PositionPicker({
   disabled = false,
   allowNone = false,
 }: PositionPickerProps) {
+  const [isFocused, setIsFocused] = React.useState(false)
+
   const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const val = e.target.value
     if (val === '' || val === 'none') {
@@ -35,33 +38,120 @@ export function PositionPicker({
     }
   }
 
+  // Prevent scroll jump on focus by storing and restoring scroll position
+  const handleFocus = React.useCallback(() => {
+    setIsFocused(true)
+    const scrollY = window.scrollY
+    const scrollX = window.scrollX
+
+    requestAnimationFrame(() => {
+      if (Math.abs(window.scrollY - scrollY) > 50) {
+        window.scrollTo({
+          top: scrollY,
+          left: scrollX,
+          behavior: 'instant'
+        })
+      }
+    })
+  }, [])
+
+  const handleBlur = React.useCallback(() => {
+    setIsFocused(false)
+  }, [])
+
+  // Get the current selected option label for display
+  const selectedOption = options.find(opt => opt.value === value)
+  const displayValue = selectedOption?.label || (allowNone && value === null ? 'None' : '')
+
   return (
-    <div className="relative">
-      <select
-        value={value || (allowNone ? 'none' : '')}
-        onChange={handleChange}
-        disabled={disabled}
+    <div className="relative w-full">
+      {/* Modern styled wrapper */}
+      <div
         className={cn(
-          "flex h-10 w-full appearance-none items-center rounded-md border border-input bg-background px-3 py-2 pr-10 text-base shadow-sm",
-          "focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
-          "disabled:cursor-not-allowed disabled:opacity-50",
-          !value && "text-muted-foreground"
+          "relative overflow-hidden rounded-xl transition-all duration-200",
+          // Border and shadow
+          "border-2",
+          isFocused
+            ? "border-primary shadow-lg shadow-primary/10"
+            : value
+              ? "border-primary/30 shadow-md"
+              : "border-input shadow-sm",
+          // Background gradient
+          value
+            ? "bg-gradient-to-r from-primary/5 to-primary/10"
+            : "bg-background",
+          // Disabled state
+          disabled && "opacity-50 cursor-not-allowed"
         )}
       >
-        {allowNone ? (
-          <option value="none">None</option>
-        ) : (
-          <option value="" disabled>
-            {placeholder}
-          </option>
+        {/* Selected value indicator */}
+        {value && (
+          <div className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center gap-2 pointer-events-none">
+            <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/20">
+              <Check className="w-3.5 h-3.5 text-primary" />
+            </div>
+          </div>
         )}
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-      <ChevronDownIcon className="pointer-events-none absolute right-3 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
+
+        {/* Native select - hidden but functional */}
+        <select
+          value={value || (allowNone ? 'none' : '')}
+          onChange={handleChange}
+          onFocus={handleFocus}
+          onBlur={handleBlur}
+          disabled={disabled}
+          className={cn(
+            "relative z-10 w-full h-12 appearance-none bg-transparent cursor-pointer",
+            "outline-none border-none",
+            // Padding adjusts based on whether there's a value (to make room for check icon)
+            value ? "pl-12 pr-10" : "pl-4 pr-10",
+            // Typography
+            "text-[16px] sm:text-sm font-medium",
+            // Colors
+            value ? "text-foreground" : "text-muted-foreground",
+            // Disabled
+            "disabled:cursor-not-allowed",
+            // Scroll margin
+            "scroll-mt-20"
+          )}
+          aria-label={placeholder}
+        >
+          {allowNone ? (
+            <option value="none">None</option>
+          ) : (
+            <option value="" disabled>
+              {placeholder}
+            </option>
+          )}
+          {options.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+
+        {/* Chevron icon with animation */}
+        <div
+          className={cn(
+            "absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none transition-transform duration-200",
+            isFocused && "rotate-180"
+          )}
+        >
+          <div className={cn(
+            "flex items-center justify-center w-6 h-6 rounded-full transition-colors duration-200",
+            isFocused ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+          )}>
+            <ChevronDownIcon className="w-4 h-4" />
+          </div>
+        </div>
+      </div>
+
+      {/* Subtle hint text when no value selected */}
+      {!value && !allowNone && (
+        <p className="mt-1.5 text-xs text-muted-foreground/70 pl-1">
+          Tap to select
+        </p>
+      )}
     </div>
   )
 }

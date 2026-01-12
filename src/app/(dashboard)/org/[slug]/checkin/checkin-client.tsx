@@ -63,8 +63,8 @@ export function CheckinClient({
 }: CheckinClientProps) {
   const router = useRouter();
   const [, startTransition] = useTransition();
-  // Start with empty state - ALWAYS fetch fresh from API, never trust server data
-  const [checkins, setCheckins] = useState<Record<string, 'checked_in' | 'checked_out'>>({});
+  // Initialize with server-provided data for immediate display, then verify with API
+  const [checkins, setCheckins] = useState<Record<string, 'checked_in' | 'checked_out'>>(initialCheckins);
   const [loadingDate, setLoadingDate] = useState<string | null>(null);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
 
@@ -115,9 +115,11 @@ export function CheckinClient({
     }
   }, [playerId, orgId, startDateStr, endDateStr]);
 
-  // DON'T sync from initialCheckins - always use fresh API data
-  // This was causing the issue: server could return stale data which would override
-  // the correct local state
+  // Sync state when initialCheckins changes (e.g., after navigation)
+  // This ensures the UI immediately reflects server state while we verify with API
+  useEffect(() => {
+    setCheckins(initialCheckins);
+  }, [initialCheckins]);
 
   // Game cutoff time - games are in the morning, so after 10 AM check-ins are for next day
   const GAME_CUTOFF_HOUR = 10;
