@@ -153,12 +153,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Get checked-in players for the date (filtered by organization)
-    // Include created_at for check-in order (first-come-first-serve for playing spots)
+    // Include checked_in_at for check-in order (first-come-first-serve for playing spots)
     const { data: checkinsData, error: checkinsError } = await supabase
       .from('checkins')
       .select(`
         player_id,
-        created_at,
+        checked_in_at,
         players!inner(
           id,
           full_name,
@@ -171,7 +171,7 @@ export async function POST(request: NextRequest) {
       .eq('date', date)
       .eq('status', 'checked_in')
       .eq('organization_id', organization_id)
-      .order('created_at', { ascending: true });
+      .order('checked_in_at', { ascending: true });
 
     // Get ratings separately with organization filter
     const playerIds = (checkinsData || []).map((c: { player_id: string }) => c.player_id);
@@ -193,7 +193,7 @@ export async function POST(request: NextRequest) {
 
     interface CheckinWithPlayer {
       player_id: string;
-      created_at: string;
+      checked_in_at: string;
       players: {
         id: string;
         full_name: string;
@@ -222,7 +222,7 @@ export async function POST(request: NextRequest) {
       rating: ratingsMap[c.player_id] || 3,
       main_position: c.players.main_position,
       alt_position: c.players.alt_position,
-      checked_in_at: c.created_at,
+      checked_in_at: c.checked_in_at,
     }));
 
     // Try Python OR-Tools solver first (mathematically optimal)

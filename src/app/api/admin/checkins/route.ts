@@ -52,11 +52,16 @@ export async function POST(request: NextRequest) {
       .eq('date', date)
       .single();
 
+    const checkinTimestamp = new Date().toISOString();
+
     if (existing) {
-      // Update to checked_in
+      // Update to checked_in with fresh timestamp
       const { error } = await adminSupabase
         .from('checkins')
-        .update({ status: 'checked_in' })
+        .update({
+          status: 'checked_in',
+          checked_in_at: checkinTimestamp,
+        })
         .eq('player_id', player_id)
         .eq('date', date);
 
@@ -68,12 +73,13 @@ export async function POST(request: NextRequest) {
         );
       }
     } else {
-      // Create new check-in
+      // Create new check-in with timestamp
       const { error } = await adminSupabase.from('checkins').insert({
         player_id,
         organization_id,
         date,
         status: 'checked_in',
+        checked_in_at: checkinTimestamp,
       });
 
       if (error) {

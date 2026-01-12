@@ -126,11 +126,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Upsert check-in using admin client to bypass RLS
+    // Include checked_in_at timestamp for first-come-first-serve ordering
     const checkinData = {
       player_id: playerId,
       date,
       status: status || 'checked_in',
       organization_id: organizationId,
+      checked_in_at: new Date().toISOString(),
     };
 
     const { data, error } = await adminSupabase
