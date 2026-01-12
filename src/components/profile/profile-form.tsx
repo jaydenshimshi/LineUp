@@ -19,13 +19,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { NativeSelect } from '@/components/ui/native-select';
 import {
   Card,
   CardContent,
@@ -41,6 +35,12 @@ interface ProfileFormProps {
   userId: string;
   initialData?: Player | null;
 }
+
+// Position options for native select
+const POSITION_OPTIONS = POSITIONS.map((pos) => ({
+  value: pos,
+  label: `${POSITION_LABELS[pos]} (${pos})`,
+}));
 
 export function ProfileForm({ userId, initialData }: ProfileFormProps) {
   const router = useRouter();
@@ -174,24 +174,16 @@ export function ProfileForm({ userId, initialData }: ProfileFormProps) {
 
           <div className="space-y-2">
             <Label htmlFor="main_position">Main Position *</Label>
-            <Select
-              value={mainPosition}
-              onValueChange={(value) =>
-                setValue('main_position', value as ProfileFormData['main_position'])
+            <NativeSelect
+              id="main_position"
+              value={mainPosition || ''}
+              onChange={(e) =>
+                setValue('main_position', e.target.value as ProfileFormData['main_position'])
               }
               disabled={isLoading}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select your main position" />
-              </SelectTrigger>
-              <SelectContent>
-                {POSITIONS.map((pos) => (
-                  <SelectItem key={pos} value={pos}>
-                    {POSITION_LABELS[pos]} ({pos})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              options={POSITION_OPTIONS}
+              placeholder="Select your main position"
+            />
             {errors.main_position && (
               <p className="text-sm text-red-500">
                 {errors.main_position.message}
@@ -201,28 +193,22 @@ export function ProfileForm({ userId, initialData }: ProfileFormProps) {
 
           <div className="space-y-2">
             <Label htmlFor="alt_position">Alternate Position (Optional)</Label>
-            <Select
+            <NativeSelect
+              id="alt_position"
               value={watch('alt_position') || 'none'}
-              onValueChange={(value) =>
+              onChange={(e) =>
                 setValue(
                   'alt_position',
-                  value === 'none' ? null : (value as ProfileFormData['main_position'])
+                  e.target.value === 'none' ? null : (e.target.value as ProfileFormData['main_position'])
                 )
               }
               disabled={isLoading}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select alternate position (optional)" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">None</SelectItem>
-                {POSITIONS.filter((pos) => pos !== mainPosition).map((pos) => (
-                  <SelectItem key={pos} value={pos}>
-                    {POSITION_LABELS[pos]} ({pos})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              options={[
+                { value: 'none', label: 'None' },
+                ...POSITION_OPTIONS.filter((opt) => opt.value !== mainPosition),
+              ]}
+              placeholder="Select alternate position (optional)"
+            />
           </div>
 
           <div className="border-t pt-4 mt-4">
