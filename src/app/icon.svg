@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!-- Background -->
+  <rect width="32" height="32" rx="6" fill="#0F172A"/>
+
+  <!-- Person 1 - Blue -->
+  <circle cx="7" cy="9" r="2" fill="#3B82F6"/>
+  <rect x="5.5" y="12" width="3" height="12" rx="1.5" fill="#3B82F6"/>
+
+  <!-- Person 2 - Green -->
+  <circle cx="13" cy="7" r="2" fill="#22C55E"/>
+  <rect x="11.5" y="10" width="3" height="14" rx="1.5" fill="#22C55E"/>
+
+  <!-- Person 3 - Gray -->
+  <circle cx="19" cy="9" r="2" fill="#94A3B8"/>
+  <rect x="17.5" y="12" width="3" height="12" rx="1.5" fill="#94A3B8"/>
+
+  <!-- Person 4 - Light Green -->
+  <circle cx="25" cy="8" r="2" fill="#4ADE80"/>
+  <rect x="23.5" y="11" width="3" height="13" rx="1.5" fill="#4ADE80"/>
+</svg>

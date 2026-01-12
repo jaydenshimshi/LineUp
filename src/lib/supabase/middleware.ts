@@ -31,6 +31,9 @@ export async function updateSession(request: NextRequest) {
     request,
   });
 
+  // Session timeout: 2 days (in seconds)
+  const SESSION_TIMEOUT = 2 * 24 * 60 * 60; // 2 days
+
   const supabase = createServerClient<Database>(supabaseUrl, supabaseAnonKey, {
     cookies: {
       getAll() {
@@ -44,7 +47,10 @@ export async function updateSession(request: NextRequest) {
           request,
         });
         cookiesToSet.forEach(({ name, value, options }) =>
-          supabaseResponse.cookies.set(name, value, options)
+          supabaseResponse.cookies.set(name, value, {
+            ...options,
+            maxAge: SESSION_TIMEOUT,
+          })
         );
       },
     },
