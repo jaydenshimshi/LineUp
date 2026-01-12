@@ -109,8 +109,12 @@ export function RatingForm({
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
+    <Dialog open={isOpen} onOpenChange={onClose} modal={true}>
+      <DialogContent
+        className="sm:max-w-md max-h-[85vh] overflow-y-auto fixed top-[50%] left-[50%] translate-x-[-50%] translate-y-[-50%]"
+        onPointerDownOutside={(e) => e.preventDefault()}
+        onInteractOutside={(e) => e.preventDefault()}
+      >
         <DialogHeader>
           <DialogTitle>Rate {playerName}</DialogTitle>
           <DialogDescription>
@@ -138,11 +142,7 @@ export function RatingForm({
                     e.stopPropagation();
                     setRating(star);
                   }}
-                  onTouchEnd={(e) => {
-                    e.preventDefault();
-                    setRating(star);
-                  }}
-                  className={`w-12 h-12 sm:w-10 sm:h-10 rounded-lg border-2 flex items-center justify-center text-xl transition-colors touch-manipulation ${
+                  className={`w-12 h-12 sm:w-10 sm:h-10 rounded-lg border-2 flex items-center justify-center text-xl transition-colors touch-manipulation select-none ${
                     star <= rating
                       ? 'border-amber-400 bg-amber-50 dark:bg-amber-900/30'
                       : 'border-gray-200 dark:border-gray-700'
@@ -175,14 +175,20 @@ export function RatingForm({
         <DialogFooter className="flex-col sm:flex-row gap-2">
           <Button
             variant="outline"
-            onClick={onClose}
+            onClick={(e) => {
+              e.preventDefault();
+              onClose();
+            }}
             disabled={isLoading}
             className="w-full sm:w-auto"
           >
             Cancel
           </Button>
           <Button
-            onClick={handleSubmit}
+            onClick={(e) => {
+              e.preventDefault();
+              handleSubmit();
+            }}
             disabled={isLoading}
             className="w-full sm:w-auto"
           >

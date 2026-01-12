@@ -5,7 +5,7 @@
  * Handles check-in toggle and status display with personalized feedback
  */
 
-import { useState, useTransition, useEffect } from 'react';
+import { useState, useTransition, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -99,19 +99,76 @@ export function OrgTodayClient({
   const [isCheckedIn, setIsCheckedIn] = useState(initialCheckedIn);
   const [checkedInCount, setCheckedInCount] = useState(initialCount);
   const [playerPosition, setPlayerPosition] = useState<number | null>(null);
-  const [showStatusCard, setShowStatusCard] = useState(false);
 
   const gameStatus = checkedInCount >= MINIMUM_PLAYERS ? 'game_on' : 'not_enough';
   const firstName = playerName.split(' ')[0];
 
-  // Animation effect when check-in status changes
-  useEffect(() => {
-    if (isCheckedIn && playerPosition) {
-      setShowStatusCard(true);
-    } else {
-      setShowStatusCard(false);
+  // Function to refetch check-in status and count
+  const refetchStatus = useCallback(async () => {
+    try {
+      // Fetch current check-in status for this player
+      const statusResponse = await fetch(
+        `/api/checkins/player?playerId=${playerId}&organizationId=${orgId}&startDate=${dateString}&endDate=${dateString}&_t=${Date.now()}`,
+        {
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+          },
+        }
+      );
+
+      if (statusResponse.ok) {
+        const statusData = await statusResponse.json();
+        const checkinRecord = statusData.checkins?.find(
+          (c: { date: string; status: string }) => c.date === dateString && c.status === 'checked_in'
+        );
+        setIsCheckedIn(!!checkinRecord);
+      }
+
+      // Fetch current check-in count using the counts endpoint
+      const countResponse = await fetch(
+        `/api/checkins/counts?dates=${dateString}&_t=${Date.now()}`,
+        {
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+          },
+        }
+      );
+
+      if (countResponse.ok) {
+        const countData = await countResponse.json();
+        setCheckedInCount(countData.counts?.[dateString] || 0);
+      }
+    } catch (error) {
+      console.error('Failed to refetch status:', error);
     }
-  }, [isCheckedIn, playerPosition]);
+  }, [playerId, orgId, dateString]);
+
+  // Refetch on mount and when page becomes visible (handles navigation back)
+  useEffect(() => {
+    // Refetch when page becomes visible
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        refetchStatus();
+      }
+    };
+
+    // Refetch when window gains focus
+    const handleFocus = () => {
+      refetchStatus();
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [refetchStatus]);
 
   const handleToggleCheckin = async () => {
     const isCheckingOut = isCheckedIn;

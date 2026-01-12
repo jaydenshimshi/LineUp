@@ -371,15 +371,16 @@ export function OrganizationsClient({ memberships }: OrganizationsClientProps) {
                       </CardContent>
                     </Card>
                   </Link>
-                  {/* Leave Group Button */}
+                  {/* Leave Group Button - Always visible on mobile, hover on desktop */}
                   <button
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
                       openLeaveDialog(org!.id, org!.name, role);
                     }}
-                    className="absolute top-3 right-3 p-1.5 rounded-full bg-background/80 backdrop-blur-sm border shadow-sm opacity-0 group-hover/card:opacity-100 transition-opacity hover:bg-destructive/10 hover:border-destructive/30 hover:text-destructive z-10"
+                    className="absolute top-3 right-3 p-2 rounded-full bg-background/90 backdrop-blur-sm border shadow-sm sm:opacity-0 sm:group-hover/card:opacity-100 transition-all hover:bg-destructive/10 hover:border-destructive/30 hover:text-destructive active:scale-95 z-10 touch-manipulation"
                     title="Leave group"
+                    aria-label="Leave group"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -450,7 +451,7 @@ export function OrganizationsClient({ memberships }: OrganizationsClientProps) {
 
       {/* Leave Group Confirmation Dialog */}
       <AlertDialog open={!!leaveOrgId} onOpenChange={() => setLeaveOrgId(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent className="max-w-[90vw] sm:max-w-lg fixed top-[50%] left-[50%] translate-x-[-50%] translate-y-[-50%]">
           <AlertDialogHeader>
             <AlertDialogTitle>Leave {leaveOrgName}?</AlertDialogTitle>
             <AlertDialogDescription className="space-y-2">

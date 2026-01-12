@@ -45,7 +45,6 @@ import {
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { SoccerField, SubstitutesList } from '@/components/teams/soccer-field';
 
 interface Player {
   id: string;
@@ -809,7 +808,7 @@ export function TeamsClient({
           </Card>
         )}
 
-        {/* Teams Display with Soccer Fields */}
+        {/* Teams Display with Drag and Drop Lists */}
         {hasExistingTeams && !isMounted && (
           <Card className="p-8">
             <div className="flex items-center justify-center">
@@ -819,220 +818,119 @@ export function TeamsClient({
           </Card>
         )}
         {hasExistingTeams && isMounted && (
-          <div className="space-y-8">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold">Team Lineups</h2>
-              <p className="text-sm text-muted-foreground">
-                Players positioned on field
-              </p>
-            </div>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+          >
+            <div className="space-y-6">
+              {/* Main Teams Grid */}
+              <div className="grid md:grid-cols-2 gap-6">
+                {/* Team Red */}
+                <TeamDropZone
+                  color="red"
+                  assignments={localTeams.red}
+                  isLocked={!!isLocked}
+                  isOver={false}
+                />
 
-            {/* Soccer Fields for Each Team */}
-            <div className="grid md:grid-cols-2 gap-6">
-              {/* Team Red */}
-              {localTeams.red.length > 0 && (
-                <Card className="overflow-hidden border-2 border-red-300 dark:border-red-800">
-                  <div className="bg-red-100 dark:bg-red-900/50 px-4 py-3 flex items-center justify-between">
-                    <h3 className="text-red-700 dark:text-red-300 font-bold text-lg flex items-center gap-2">
-                      <span className="w-4 h-4 rounded-full bg-red-500" />
-                      Team Red
-                    </h3>
-                    <Badge className="bg-red-500 text-white">{localTeams.red.length} players</Badge>
-                  </div>
-                  <CardContent className="pt-4 pb-6">
-                    <SoccerField
-                      teamColor="red"
-                      players={localTeams.red.map((a) => ({
-                        id: a.id,
-                        player_id: a.player_id,
-                        full_name: a.players.full_name,
-                        main_position: a.players.main_position,
-                        team_color: a.team_color,
-                        rating: a.rating,
-                      }))}
-                      isLocked={!!isLocked}
-                    />
-                    {/* Red Subs */}
-                    {localTeams.sub.filter((s) => s.bench_team === 'red').length > 0 && (
-                      <div className="mt-4">
-                        <SubstitutesList
-                          teamColor="red"
-                          players={localTeams.sub
-                            .filter((s) => s.bench_team === 'red')
-                            .map((a) => ({
-                              id: a.id,
-                              player_id: a.player_id,
-                              full_name: a.players.full_name,
-                              main_position: a.players.main_position,
-                              team_color: a.team_color,
-                              rating: a.rating,
-                            }))}
-                        />
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Team Blue */}
-              {localTeams.blue.length > 0 && (
-                <Card className="overflow-hidden border-2 border-blue-300 dark:border-blue-800">
-                  <div className="bg-blue-100 dark:bg-blue-900/50 px-4 py-3 flex items-center justify-between">
-                    <h3 className="text-blue-700 dark:text-blue-300 font-bold text-lg flex items-center gap-2">
-                      <span className="w-4 h-4 rounded-full bg-blue-500" />
-                      Team Blue
-                    </h3>
-                    <Badge className="bg-blue-500 text-white">{localTeams.blue.length} players</Badge>
-                  </div>
-                  <CardContent className="pt-4 pb-6">
-                    <SoccerField
-                      teamColor="blue"
-                      players={localTeams.blue.map((a) => ({
-                        id: a.id,
-                        player_id: a.player_id,
-                        full_name: a.players.full_name,
-                        main_position: a.players.main_position,
-                        team_color: a.team_color,
-                        rating: a.rating,
-                      }))}
-                      isLocked={!!isLocked}
-                    />
-                    {/* Blue Subs */}
-                    {localTeams.sub.filter((s) => s.bench_team === 'blue').length > 0 && (
-                      <div className="mt-4">
-                        <SubstitutesList
-                          teamColor="blue"
-                          players={localTeams.sub
-                            .filter((s) => s.bench_team === 'blue')
-                            .map((a) => ({
-                              id: a.id,
-                              player_id: a.player_id,
-                              full_name: a.players.full_name,
-                              main_position: a.players.main_position,
-                              team_color: a.team_color,
-                              rating: a.rating,
-                            }))}
-                        />
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
+                {/* Team Blue */}
+                <TeamDropZone
+                  color="blue"
+                  assignments={localTeams.blue}
+                  isLocked={!!isLocked}
+                  isOver={false}
+                />
+              </div>
 
               {/* Team Yellow - only if exists */}
               {localTeams.yellow.length > 0 && (
-                <Card className="overflow-hidden border-2 border-yellow-300 dark:border-yellow-800 md:col-span-2 md:max-w-md md:mx-auto">
-                  <div className="bg-yellow-100 dark:bg-yellow-900/50 px-4 py-3 flex items-center justify-between">
-                    <h3 className="text-yellow-700 dark:text-yellow-300 font-bold text-lg flex items-center gap-2">
-                      <span className="w-4 h-4 rounded-full bg-yellow-500" />
-                      Team Yellow
-                    </h3>
-                    <Badge className="bg-yellow-500 text-white">{localTeams.yellow.length} players</Badge>
-                  </div>
-                  <CardContent className="pt-4 pb-6">
-                    <SoccerField
-                      teamColor="yellow"
-                      players={localTeams.yellow.map((a) => ({
-                        id: a.id,
-                        player_id: a.player_id,
-                        full_name: a.players.full_name,
-                        main_position: a.players.main_position,
-                        team_color: a.team_color,
-                        rating: a.rating,
-                      }))}
-                      isLocked={!!isLocked}
-                    />
-                    {/* Yellow Subs */}
-                    {localTeams.sub.filter((s) => s.bench_team === 'yellow').length > 0 && (
-                      <div className="mt-4">
-                        <SubstitutesList
-                          teamColor="yellow"
-                          players={localTeams.sub
-                            .filter((s) => s.bench_team === 'yellow')
-                            .map((a) => ({
-                              id: a.id,
-                              player_id: a.player_id,
-                              full_name: a.players.full_name,
-                              main_position: a.players.main_position,
-                              team_color: a.team_color,
-                              rating: a.rating,
-                            }))}
-                        />
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
-            </div>
-
-            {/* Unassigned Subs */}
-            {localTeams.sub.filter((s) => !s.bench_team).length > 0 && (
-              <Card className="bg-gray-50 dark:bg-gray-900/30 border-2 border-gray-300 dark:border-gray-700">
-                <div className="bg-gray-100 dark:bg-gray-800 px-4 py-3 flex items-center justify-between">
-                  <h3 className="text-gray-700 dark:text-gray-400 font-bold text-lg">
-                    Unassigned Substitutes
-                  </h3>
-                  <Badge className="bg-gray-500 text-white">
-                    {localTeams.sub.filter((s) => !s.bench_team).length} players
-                  </Badge>
+                <div className="max-w-md mx-auto">
+                  <TeamDropZone
+                    color="yellow"
+                    assignments={localTeams.yellow}
+                    isLocked={!!isLocked}
+                    isOver={false}
+                  />
                 </div>
-                <CardContent className="pt-4">
-                  <div className="flex flex-wrap gap-2">
-                    {localTeams.sub
-                      .filter((s) => !s.bench_team)
-                      .map((assignment) => (
-                        <Badge key={assignment.id} variant="secondary" className="py-1 px-2">
-                          {assignment.players.full_name}
-                          {assignment.rating && (
-                            <span className="ml-1 text-amber-500 text-[10px]">
-                              {'★'.repeat(assignment.rating)}
-                            </span>
-                          )}
-                        </Badge>
-                      ))}
+              )}
+
+              {/* Substitutes */}
+              {localTeams.sub.length > 0 && (
+                <TeamDropZone
+                  color="sub"
+                  assignments={localTeams.sub}
+                  isLocked={!!isLocked}
+                  isOver={false}
+                />
+              )}
+
+              {/* Balance Stats */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <span>📊</span> Balance Stats
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
+                    {/* Only show stats for teams with players */}
+                    {(['red', 'blue', 'yellow', 'sub'] as const)
+                      .filter((color) => localTeams[color].length > 0)
+                      .map((color) => {
+                        const teamPlayers = localTeams[color];
+                        const avgRating = getTeamAverageRating(teamPlayers);
+
+                        return (
+                          <div key={color}>
+                            <p
+                              className={cn(
+                                'font-semibold capitalize',
+                                teamColors[color].text
+                              )}
+                            >
+                              {color === 'sub' ? 'Subs' : color}
+                            </p>
+                            <p className="text-2xl font-bold">
+                              {teamPlayers.length}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              players
+                            </p>
+                            {avgRating !== null && (
+                              <p className="text-sm font-medium text-amber-600 dark:text-amber-400">
+                                Avg: {avgRating.toFixed(1)}★
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })}
                   </div>
                 </CardContent>
               </Card>
-            )}
+            </div>
 
-            {/* Balance Stats */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <span>📊</span> Balance Stats
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
-                  {/* Only show stats for teams with players */}
-                  {(['red', 'blue', 'yellow', 'sub'] as const)
-                    .filter((color) => localTeams[color].length > 0)
-                    .map((color) => {
-                      const teamPlayers = localTeams[color];
-
-                      return (
-                        <div key={color}>
-                          <p
-                            className={cn(
-                              'font-semibold capitalize',
-                              teamColors[color].text
-                            )}
-                          >
-                            {color === 'sub' ? 'Subs' : color}
-                          </p>
-                          <p className="text-2xl font-bold">
-                            {teamPlayers.length}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            players
-                          </p>
-                        </div>
-                      );
-                    })}
+            {/* Drag Overlay */}
+            <DragOverlay>
+              {activePlayer && (
+                <div className="flex items-center justify-between py-2 px-3 rounded-lg border border-primary bg-background shadow-lg">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-medium">
+                      {activePlayer.players.full_name
+                        .split(' ')
+                        .map((n) => n[0])
+                        .join('')
+                        .slice(0, 2)}
+                    </div>
+                    <span className="font-medium text-sm">
+                      {activePlayer.players.full_name}
+                    </span>
+                  </div>
                 </div>
-              </CardContent>
-            </Card>
-          </div>
+              )}
+            </DragOverlay>
+          </DndContext>
         )}
 
         {/* No players message */}
