@@ -64,7 +64,13 @@ def solve():
 
         logger.info(f"Solving for {len(players_data)} players")
 
+        # Debug: log players with alt positions
+        for p in players_data:
+            if p.get('alt_position'):
+                logger.info(f"  {p.get('name')}: {p.get('main_position')} (alt: {p.get('alt_position')})")
+
         result = solve_from_dict(players_data, timeout=timeout)
+        result['solver_version'] = '4.1.0'  # Version to verify deployment
 
         status_code = 200 if result.get('success') else 422
         return jsonify(result), status_code
