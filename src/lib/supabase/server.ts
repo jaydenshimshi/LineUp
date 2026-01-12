@@ -42,15 +42,6 @@ export async function createClient(): Promise<SupabaseClient> {
         }
       },
     },
-    // Disable Next.js fetch caching for all Supabase queries
-    global: {
-      fetch: (url: string, options: RequestInit = {}) => {
-        return fetch(url, {
-          ...options,
-          cache: 'no-store',
-        });
-      },
-    },
   });
 }
 
@@ -78,15 +69,6 @@ export function createAdminClient(): SupabaseClient {
     auth: {
       autoRefreshToken: false,
       persistSession: false,
-    },
-    // Disable Next.js fetch caching for all Supabase queries
-    global: {
-      fetch: (url: string, options: RequestInit = {}) => {
-        return fetch(url, {
-          ...options,
-          cache: 'no-store',
-        });
-      },
     },
   });
 }
