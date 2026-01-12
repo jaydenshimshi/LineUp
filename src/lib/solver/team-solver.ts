@@ -526,7 +526,23 @@ export function solveTeams(players: Player[]): SolveResult {
       assignedRoles[player.id] = player.mainPosition;
     }
 
-    // Second pass: use alts to fill gaps
+    // Second pass: handle excess GKs first - reassign extra GKs to their alt position
+    while (posCounts.GK > 1) {
+      let reassigned = false;
+      for (const player of team) {
+        if (assignedRoles[player.id] === 'GK' && player.altPosition) {
+          // Reassign this GK to their alternate position
+          assignedRoles[player.id] = player.altPosition;
+          posCounts.GK--;
+          posCounts[player.altPosition]++;
+          reassigned = true;
+          break;
+        }
+      }
+      if (!reassigned) break; // No more GKs with alt positions
+    }
+
+    // Third pass: use alts to fill gaps for field positions
     for (const pos of ['DF', 'MID', 'ST'] as Position[]) {
       if (posCounts[pos] === 0) {
         for (const player of team) {
