@@ -40,6 +40,15 @@ export async function createClient() {
         }
       },
     },
+    // Disable Next.js fetch caching for all Supabase queries
+    global: {
+      fetch: (url: string, options: RequestInit = {}) => {
+        return fetch(url, {
+          ...options,
+          cache: 'no-store',
+        });
+      },
+    },
   });
 }
 
@@ -67,6 +76,15 @@ export function createAdminClient() {
     auth: {
       autoRefreshToken: false,
       persistSession: false,
+    },
+    // Disable Next.js fetch caching for all Supabase queries
+    global: {
+      fetch: (url: string, options: RequestInit = {}) => {
+        return fetch(url, {
+          ...options,
+          cache: 'no-store',
+        });
+      },
     },
   });
 }

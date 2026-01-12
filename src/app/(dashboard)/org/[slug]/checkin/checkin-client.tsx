@@ -115,11 +115,9 @@ export function CheckinClient({
     }
   }, [playerId, orgId, startDateStr, endDateStr]);
 
-  // Sync state when initialCheckins changes (e.g., after navigation)
-  // This ensures the UI immediately reflects server state while we verify with API
-  useEffect(() => {
-    setCheckins(initialCheckins);
-  }, [initialCheckins]);
+  // NOTE: We intentionally do NOT sync from initialCheckins after mount.
+  // The server may return cached/stale data. We use initialCheckins only for
+  // the first render, then refetchCheckins() becomes the source of truth.
 
   // Game cutoff time - games are in the morning, so after 10 AM check-ins are for next day
   const GAME_CUTOFF_HOUR = 10;
