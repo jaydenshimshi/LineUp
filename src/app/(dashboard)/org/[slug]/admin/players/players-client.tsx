@@ -16,6 +16,7 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { ChevronDownIcon } from 'lucide-react';
+import { BackButton } from '@/components/ui/back-button';
 
 interface Player {
   id: string;
@@ -376,18 +377,21 @@ export function PlayersClient({ orgId, players, todayCheckins = [], sessionDate:
     <div className="min-h-screen bg-background">
       <div className="container mx-auto py-3 px-3 max-w-lg">
         {/* Header */}
-        <div className="flex items-center justify-between mb-3">
-          <div>
-            <h1 className="text-lg font-bold">Players</h1>
-            <p className="text-xs text-muted-foreground">{players.length} total</p>
+        <div className="mb-3">
+          <BackButton className="-ml-2 mb-1" />
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-lg font-bold">Players</h1>
+              <p className="text-xs text-muted-foreground">{players.length} total</p>
+            </div>
+            <Button
+              size="sm"
+              onClick={() => setShowAddForm(!showAddForm)}
+              variant={showAddForm ? 'outline' : 'default'}
+            >
+              {showAddForm ? 'Cancel' : '+ Add'}
+            </Button>
           </div>
-          <Button
-            size="sm"
-            onClick={() => setShowAddForm(!showAddForm)}
-            variant={showAddForm ? 'outline' : 'default'}
-          >
-            {showAddForm ? 'Cancel' : '+ Add'}
-          </Button>
         </div>
 
         {/* Add Player Form (inline) */}

@@ -201,50 +201,35 @@ export function AdminDashboardClient({
     }
   };
 
-  const stats = [
+  // Single consolidated navigation - no duplicates
+  const adminNav = [
     {
-      title: 'Members',
-      value: memberCount,
-      icon: '👥',
-      href: `admin/members`,
-      color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+      title: 'Teams',
+      description: `${todayCheckins} checked in`,
+      icon: '🎯',
+      href: `admin/teams`,
+      color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
     },
     {
       title: 'Players',
-      value: totalPlayers,
-      description: `(${ratedPlayers} rated)`,
+      description: `${totalPlayers} total, ${ratedPlayers} rated`,
       icon: '⚽',
       href: `admin/players`,
       color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
     },
     {
-      title: 'Check-ins',
-      value: todayCheckins,
-      icon: '✅',
-      href: `admin/teams`,
-      color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
-    },
-  ];
-
-  const quickActions = [
-    {
-      title: 'Manage Teams',
-      description: 'Adjust team assignments',
-      icon: '🎯',
-      href: `admin/teams`,
-      primary: true,
-    },
-    {
       title: 'Members',
-      description: 'Invite & manage roles',
-      icon: '🔑',
+      description: `${memberCount} members`,
+      icon: '👥',
       href: `admin/members`,
+      color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
     },
     {
       title: 'Settings',
       description: 'Organization settings',
       icon: '⚙️',
       href: `admin/settings`,
+      color: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400',
     },
   ];
 
@@ -440,42 +425,20 @@ export function AdminDashboardClient({
           </Card>
         )}
 
-        {/* Stats Grid - 3 items */}
-        <div className="grid grid-cols-3 gap-2 sm:gap-4 mb-6">
-          {stats.map((stat) => (
-            <Link key={stat.title} href={`/org/${orgSlug}/${stat.href}`}>
+        {/* Admin Navigation - 4 items, 2x2 grid on mobile */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 mb-6">
+          {adminNav.map((item) => (
+            <Link key={item.title} href={`/org/${orgSlug}/${item.href}`}>
               <Card className="hover:shadow-md hover:border-primary/30 transition-all cursor-pointer h-full">
-                <CardContent className="p-3 sm:pt-6 sm:px-6">
+                <CardContent className="p-3 sm:p-4">
                   <div
-                    className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg ${stat.color} flex items-center justify-center text-lg sm:text-xl mb-2 sm:mb-3`}
+                    className={`w-9 h-9 sm:w-10 sm:h-10 rounded-lg ${item.color} flex items-center justify-center text-lg sm:text-xl mb-2`}
                   >
-                    {stat.icon}
+                    {item.icon}
                   </div>
-                  <p className="text-xl sm:text-2xl font-bold">{stat.value}</p>
-                  <p className="text-[11px] sm:text-sm text-muted-foreground">{stat.title}</p>
-                  {stat.description && (
-                    <p className="text-[10px] sm:text-xs text-muted-foreground">{stat.description}</p>
-                  )}
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
-        </div>
-
-        {/* Quick Actions - 3 items */}
-        <div className="grid grid-cols-3 gap-2 sm:gap-4 mb-6">
-          {quickActions.map((action) => (
-            <Link key={action.title} href={`/org/${orgSlug}/${action.href}`}>
-              <Card
-                className={`hover:shadow-md transition-all cursor-pointer h-full ${
-                  action.primary ? 'border-primary/50 bg-primary/5' : ''
-                }`}
-              >
-                <CardContent className="p-3 sm:pt-6 sm:px-6">
-                  <div className="text-2xl sm:text-3xl mb-2 sm:mb-3">{action.icon}</div>
-                  <h3 className="text-sm sm:text-base font-semibold">{action.title}</h3>
-                  <p className="text-[11px] sm:text-sm text-muted-foreground mt-0.5 sm:mt-1">
-                    {action.description}
+                  <h3 className="text-sm font-semibold">{item.title}</h3>
+                  <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 line-clamp-1">
+                    {item.description}
                   </p>
                 </CardContent>
               </Card>

@@ -32,6 +32,7 @@ import {
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { BackButton } from '@/components/ui/back-button';
 
 interface Announcement {
   id: string;
@@ -196,13 +197,15 @@ export function AnnouncementsClient({
     <div className="min-h-screen bg-gradient-to-b from-primary/5 via-background to-background">
       <div className="container mx-auto py-8 px-4 max-w-4xl">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-3xl font-bold">Announcements</h1>
-            <p className="text-muted-foreground mt-1">
-              Broadcast messages to your group members
-            </p>
-          </div>
+        <div className="mb-6">
+          <BackButton className="-ml-2 mb-1" />
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-xl font-bold">Announcements</h1>
+              <p className="text-sm text-muted-foreground">
+                Broadcast messages to your group
+              </p>
+            </div>
           <Dialog open={isDialogOpen} onOpenChange={(open) => {
             setIsDialogOpen(open);
             if (!open) resetForm();
@@ -331,6 +334,7 @@ export function AnnouncementsClient({
               </DialogFooter>
             </DialogContent>
           </Dialog>
+          </div>
         </div>
 
         {/* Announcements List */}

@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { BackButton } from '@/components/ui/back-button';
 
 interface PlayerStat {
   id: string;
@@ -110,9 +111,10 @@ export function StatsClient({ orgName, playerStats, orgStats }: StatsClientProps
     <div className="min-h-screen bg-gradient-to-b from-muted/30 to-background">
       <div className="container mx-auto py-6 px-4 max-w-5xl">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold">Player Statistics</h1>
-          <p className="text-muted-foreground mt-1">
+        <div className="mb-6">
+          <BackButton className="-ml-2 mb-1" />
+          <h1 className="text-xl font-bold">Player Statistics</h1>
+          <p className="text-sm text-muted-foreground">
             {orgName} - Last 3 months
           </p>
         </div>

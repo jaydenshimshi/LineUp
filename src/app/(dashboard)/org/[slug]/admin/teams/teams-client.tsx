@@ -29,6 +29,7 @@ import {
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { ChevronDownIcon, Check } from 'lucide-react';
+import { BackButton } from '@/components/ui/back-button';
 
 interface Player {
   id: string;
@@ -508,6 +509,7 @@ export function TeamsClient({
       <div className="container mx-auto py-4 px-3 max-w-lg">
         {/* Header */}
         <div className="mb-4">
+          <BackButton className="-ml-2 mb-1" />
           <h1 className="text-xl font-bold">Generate Teams</h1>
           <p className="text-sm text-muted-foreground">{displayDate}</p>
         </div>

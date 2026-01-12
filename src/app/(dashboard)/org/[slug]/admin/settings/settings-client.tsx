@@ -43,6 +43,7 @@ import {
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
+import { BackButton } from '@/components/ui/back-button';
 
 const settingsSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
@@ -151,9 +152,10 @@ export function SettingsClient({ org, isOwner }: SettingsClientProps) {
     <div className="min-h-screen bg-gradient-to-b from-muted/30 to-background">
       <div className="container mx-auto py-6 px-4 max-w-2xl">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold">Settings</h1>
-          <p className="text-muted-foreground mt-1">Manage your organization</p>
+        <div className="mb-6">
+          <BackButton className="-ml-2 mb-1" />
+          <h1 className="text-xl font-bold">Settings</h1>
+          <p className="text-sm text-muted-foreground">Manage your organization</p>
         </div>
 
         {error && (

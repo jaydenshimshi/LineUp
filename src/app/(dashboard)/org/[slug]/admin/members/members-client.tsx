@@ -44,6 +44,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
+import { BackButton } from '@/components/ui/back-button';
 
 interface Member {
   id: string;
@@ -183,9 +184,10 @@ export function MembersClient({
     <div className="min-h-screen bg-gradient-to-b from-muted/30 to-background">
       <div className="container mx-auto py-6 px-4 max-w-3xl">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold">Members</h1>
-          <p className="text-muted-foreground mt-1">
+        <div className="mb-6">
+          <BackButton className="-ml-2 mb-1" />
+          <h1 className="text-xl font-bold">Members</h1>
+          <p className="text-sm text-muted-foreground">
             {members.length} members in {orgName}
           </p>
         </div>
