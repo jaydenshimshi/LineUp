@@ -5,7 +5,7 @@
  */
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { createClient } from '@/lib/supabase/client';
@@ -44,6 +44,7 @@ interface ProfileFormProps {
 
 export function ProfileForm({ userId, initialData }: ProfileFormProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -104,7 +105,17 @@ export function ProfileForm({ userId, initialData }: ProfileFormProps) {
         }
       }
 
-      router.push('/');
+      // Check for next param or pending join code
+      const nextUrl = searchParams.get('next');
+      const pendingJoinCode = localStorage.getItem('pendingJoinCode');
+
+      if (nextUrl) {
+        router.push(nextUrl);
+      } else if (pendingJoinCode) {
+        router.push('/organizations');
+      } else {
+        router.push('/');
+      }
       router.refresh();
     } catch (err) {
       setError('An unexpected error occurred. Please try again.');

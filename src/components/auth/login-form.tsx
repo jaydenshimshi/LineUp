@@ -55,7 +55,13 @@ export function LoginForm() {
         return;
       }
 
-      router.push('/');
+      // Check if there's a pending join code from QR scan
+      const pendingJoinCode = localStorage.getItem('pendingJoinCode');
+      if (pendingJoinCode) {
+        router.push('/organizations');
+      } else {
+        router.push('/');
+      }
       router.refresh();
     } catch (err) {
       setError('An unexpected error occurred. Please try again.');
