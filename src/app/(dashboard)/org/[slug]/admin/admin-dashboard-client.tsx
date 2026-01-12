@@ -229,20 +229,14 @@ export function AdminDashboardClient({
   const quickActions = [
     {
       title: 'Manage Teams',
-      description: 'View and adjust team assignments',
+      description: 'Adjust team assignments',
       icon: '🎯',
       href: `admin/teams`,
       primary: true,
     },
     {
-      title: 'Manage Players',
-      description: 'View profiles and set ratings',
-      icon: '👤',
-      href: `admin/players`,
-    },
-    {
       title: 'Members',
-      description: 'Manage roles and access',
+      description: 'Invite & manage roles',
       icon: '🔑',
       href: `admin/members`,
     },
@@ -446,33 +440,30 @@ export function AdminDashboardClient({
           </Card>
         )}
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        {/* Stats Grid - 3 items */}
+        <div className="grid grid-cols-3 gap-2 sm:gap-4 mb-6">
           {stats.map((stat) => (
             <Link key={stat.title} href={`/org/${orgSlug}/${stat.href}`}>
               <Card className="hover:shadow-md hover:border-primary/30 transition-all cursor-pointer h-full">
-                <CardContent className="pt-6">
+                <CardContent className="p-3 sm:pt-6 sm:px-6">
                   <div
-                    className={`w-10 h-10 rounded-lg ${stat.color} flex items-center justify-center text-xl mb-3`}
+                    className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg ${stat.color} flex items-center justify-center text-lg sm:text-xl mb-2 sm:mb-3`}
                   >
                     {stat.icon}
                   </div>
-                  <div className="flex items-baseline gap-1">
-                    <p className="text-2xl font-bold">{stat.value}</p>
-                    {stat.description && (
-                      <p className="text-xs text-muted-foreground">{stat.description}</p>
-                    )}
-                  </div>
-                  <p className="text-sm text-muted-foreground mt-1">{stat.title}</p>
+                  <p className="text-xl sm:text-2xl font-bold">{stat.value}</p>
+                  <p className="text-[11px] sm:text-sm text-muted-foreground">{stat.title}</p>
+                  {stat.description && (
+                    <p className="text-[10px] sm:text-xs text-muted-foreground">{stat.description}</p>
+                  )}
                 </CardContent>
               </Card>
             </Link>
           ))}
         </div>
 
-        {/* Quick Actions */}
-        <h2 className="text-lg font-semibold mb-4">Quick Actions</h2>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        {/* Quick Actions - 3 items */}
+        <div className="grid grid-cols-3 gap-2 sm:gap-4 mb-6">
           {quickActions.map((action) => (
             <Link key={action.title} href={`/org/${orgSlug}/${action.href}`}>
               <Card
@@ -480,10 +471,10 @@ export function AdminDashboardClient({
                   action.primary ? 'border-primary/50 bg-primary/5' : ''
                 }`}
               >
-                <CardContent className="pt-6">
-                  <div className="text-3xl mb-3">{action.icon}</div>
-                  <h3 className="font-semibold">{action.title}</h3>
-                  <p className="text-sm text-muted-foreground mt-1">
+                <CardContent className="p-3 sm:pt-6 sm:px-6">
+                  <div className="text-2xl sm:text-3xl mb-2 sm:mb-3">{action.icon}</div>
+                  <h3 className="text-sm sm:text-base font-semibold">{action.title}</h3>
+                  <p className="text-[11px] sm:text-sm text-muted-foreground mt-0.5 sm:mt-1">
                     {action.description}
                   </p>
                 </CardContent>
