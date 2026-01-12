@@ -66,7 +66,17 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ checkins: data || [] });
+    // Return with no-cache headers to ensure fresh data
+    return NextResponse.json(
+      { checkins: data || [] },
+      {
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0',
+        },
+      }
+    );
   } catch (err) {
     console.error('Player check-ins GET error:', err);
     return NextResponse.json(

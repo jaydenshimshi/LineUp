@@ -4,11 +4,13 @@
  */
 
 import { redirect } from 'next/navigation';
+import { unstable_noStore as noStore } from 'next/cache';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { CheckinClient } from './checkin-client';
 import type { Metadata } from 'next';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export const metadata: Metadata = {
   title: 'Check-in - Lineup',
@@ -20,6 +22,9 @@ interface PageProps {
 }
 
 export default async function CheckinPage({ params }: PageProps) {
+  // Ensure no caching for this page - always fetch fresh data
+  noStore();
+
   const { slug } = await params;
   const supabase = await createClient();
 

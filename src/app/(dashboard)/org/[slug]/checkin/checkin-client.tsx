@@ -85,19 +85,31 @@ export function CheckinClient({
       const startDate = format(today, 'yyyy-MM-dd');
       const endDate = format(addDays(today, 13), 'yyyy-MM-dd');
 
+      // Add cache busting and no-cache headers to ensure fresh data
       const response = await fetch(
-        `/api/checkins/player?playerId=${playerId}&organizationId=${orgId}&startDate=${startDate}&endDate=${endDate}`
+        `/api/checkins/player?playerId=${playerId}&organizationId=${orgId}&startDate=${startDate}&endDate=${endDate}&_t=${Date.now()}`,
+        {
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+          },
+        }
       );
 
       if (response.ok) {
         const data = await response.json();
-        if (data.checkins) {
-          const checkinMap: Record<string, 'checked_in' | 'checked_out'> = {};
+        console.log('Refetch checkins result:', data);
+        // Only update with actual checked_in records
+        const checkinMap: Record<string, 'checked_in' | 'checked_out'> = {};
+        if (data.checkins && Array.isArray(data.checkins)) {
           data.checkins.forEach((c: { date: string; status: string }) => {
-            checkinMap[c.date] = c.status as 'checked_in' | 'checked_out';
+            if (c.status === 'checked_in') {
+              checkinMap[c.date] = 'checked_in';
+            }
           });
-          setCheckins(checkinMap);
         }
+        setCheckins(checkinMap);
       }
     } catch (error) {
       console.error('Failed to refetch checkins:', error);
@@ -146,15 +158,32 @@ export function CheckinClient({
     initialCounts: initialCounts,
   });
 
-  // Refetch on window focus (when user returns to the tab/app)
+  // Refetch on mount and window focus (when user returns to the tab/app)
   useEffect(() => {
+    // Refetch on mount to ensure we have the latest data
+    refetchCheckins();
+    refetchCounts();
+
     const handleFocus = () => {
       refetchCheckins();
       refetchCounts();
     };
 
+    // Also refetch when page becomes visible (handles navigation back to page)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        refetchCheckins();
+        refetchCounts();
+      }
+    };
+
     window.addEventListener('focus', handleFocus);
-    return () => window.removeEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, [refetchCheckins, refetchCounts]);
 
   // Split into weeks
@@ -217,6 +246,9 @@ export function CheckinClient({
         });
       }
 
+      const responseData = await response.json().catch(() => ({}));
+      console.log('Check-in response:', response.status, responseData);
+
       if (response.ok) {
         // Update local state
         if (isCheckingOut) {
@@ -232,8 +264,9 @@ export function CheckinClient({
           }));
         }
 
-        // Immediately refetch counts to update the badge
+        // Immediately refetch counts and checkins to ensure sync
         refetchCounts();
+        refetchCheckins();
 
         // Show toast notification
         if (!isCheckingOut) {
@@ -246,13 +279,13 @@ export function CheckinClient({
           });
         }
 
+        // Force router refresh
         startTransition(() => {
           router.refresh();
         });
       } else {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('Check-in error:', errorData);
-        toast.error('Failed to update check-in');
+        console.error('Check-in error:', responseData);
+        toast.error(responseData.error || 'Failed to update check-in');
       }
     } catch (error) {
       console.error('Failed to update check-in:', error);

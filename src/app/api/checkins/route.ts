@@ -205,29 +205,66 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Delete check-in using admin client
-    let query = adminSupabase
+    // First, check if the record exists
+    const { data: existingCheckin } = await adminSupabase
       .from('checkins')
-      .delete()
+      .select('id, player_id, date, organization_id, status')
       .eq('player_id', playerId)
-      .eq('date', date);
+      .eq('date', date)
+      .maybeSingle();
 
-    // Also filter by organizationId if provided
-    if (organizationId) {
-      query = query.eq('organization_id', organizationId);
+    console.log('DELETE check-in - existing record:', existingCheckin);
+
+    if (!existingCheckin) {
+      console.log('No check-in record found to delete');
+      return NextResponse.json({ success: true, message: 'No record found' });
     }
 
-    const { error } = await query;
+    // Delete by the record's ID to be 100% sure
+    const { error, count } = await adminSupabase
+      .from('checkins')
+      .delete({ count: 'exact' })
+      .eq('id', existingCheckin.id);
+
+    console.log('DELETE result - error:', error, 'count:', count);
 
     if (error) {
       console.error('Error deleting check-in:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Revalidate the check-in pages to ensure fresh data
-    revalidatePath('/org/[slug]/checkin', 'page');
+    // Verify the record is actually gone
+    const { data: verifyDeleted } = await adminSupabase
+      .from('checkins')
+      .select('id')
+      .eq('id', existingCheckin.id)
+      .maybeSingle();
 
-    return NextResponse.json({ success: true });
+    console.log('DELETE verification - record still exists:', !!verifyDeleted);
+
+    if (verifyDeleted) {
+      console.error('CRITICAL: Record still exists after delete!');
+      return NextResponse.json(
+        { error: 'Failed to delete check-in record' },
+        { status: 500 }
+      );
+    }
+
+    // Revalidate all paths that might show check-in data
+    revalidatePath('/org/[slug]/checkin', 'page');
+    revalidatePath('/org/[slug]', 'page');
+
+    // Return success with no-cache headers
+    return NextResponse.json(
+      { success: true, deleted: count },
+      {
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0',
+        },
+      }
+    );
   } catch (err) {
     console.error('Check-ins DELETE error:', err);
     return NextResponse.json(

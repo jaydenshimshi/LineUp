@@ -632,6 +632,20 @@ body {
   }
 }
 
+/* Prevent select elements from triggering page scroll on focus */
+select {
+  /* Use instant scroll behavior for focus */
+  scroll-behavior: auto;
+  /* Add scroll margin so element isn't hidden under headers */
+  scroll-margin-top: 100px;
+  scroll-margin-bottom: 100px;
+}
+
+/* Disable smooth scroll temporarily when interacting with form elements */
+html:has(select:focus) {
+  scroll-behavior: auto;
+}
+
 /* Hardware acceleration for fixed/sticky elements */
 .fixed, .sticky, [style*="position: fixed"], [style*="position: sticky"] {
   transform: translateZ(0);
