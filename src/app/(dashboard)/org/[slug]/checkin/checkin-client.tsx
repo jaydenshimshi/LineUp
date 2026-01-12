@@ -7,7 +7,7 @@
 
 import { useState, useTransition, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { format, addDays, isSameDay, isToday, isPast } from 'date-fns';
+import { format, addDays, isSameDay, isToday, isPast, setHours, setMinutes } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -73,6 +73,26 @@ export function CheckinClient({
   const [loadingPlayers, setLoadingPlayers] = useState(false);
 
   const today = new Date();
+
+  // Game cutoff time - games are in the morning, so after 10 AM check-ins are for next day
+  const GAME_CUTOFF_HOUR = 10;
+
+  // Check if a date's game has already passed (past days, or today after cutoff)
+  const isGamePast = (date: Date): boolean => {
+    const now = new Date();
+
+    // If it's a past day (not today), it's definitely past
+    if (isPast(date) && !isToday(date)) {
+      return true;
+    }
+
+    // If it's today and we're past the cutoff time, game has happened
+    if (isToday(date) && now.getHours() >= GAME_CUTOFF_HOUR) {
+      return true;
+    }
+
+    return false;
+  };
 
   // Generate 14 days starting from today
   const days = useMemo(() => {
@@ -184,8 +204,9 @@ export function CheckinClient({
     const status = checkins[dateString];
     const isCheckedIn = status === 'checked_in';
     const count = checkinCounts[dateString] || 0;
-    const isPastDay = isPast(date) && !isToday(date);
+    const isPastDay = isGamePast(date);
     const isTodayDate = isToday(date);
+    const isTodayButPast = isTodayDate && isPastDay; // Today but after cutoff
 
     const handleClick = (e: React.MouseEvent) => {
       e.preventDefault();
@@ -207,7 +228,7 @@ export function CheckinClient({
           isCheckedIn
             ? 'border-primary bg-primary/10'
             : 'border-border bg-card',
-          isTodayDate && !isCheckedIn && 'border-primary/50 ring-1 ring-primary/20',
+          isTodayDate && !isCheckedIn && !isPastDay && 'border-primary/50 ring-1 ring-primary/20',
           loadingDate === dateString && 'animate-pulse'
         )}
       >
@@ -231,7 +252,7 @@ export function CheckinClient({
             className={cn(
               'text-sm font-bold',
               isCheckedIn ? 'text-primary' : 'text-foreground',
-              isTodayDate && 'text-primary'
+              isTodayDate && !isPastDay && 'text-primary'
             )}
           >
             {format(date, 'd')}
@@ -269,8 +290,11 @@ export function CheckinClient({
 
         {/* Today indicator */}
         {isTodayDate && (
-          <span className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 text-[8px] font-medium text-primary">
-            Today
+          <span className={cn(
+            "absolute -bottom-0.5 left-1/2 -translate-x-1/2 text-[8px] font-medium",
+            isTodayButPast ? "text-muted-foreground" : "text-primary"
+          )}>
+            {isTodayButPast ? 'Played' : 'Today'}
           </span>
         )}
       </div>

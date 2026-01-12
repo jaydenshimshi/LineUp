@@ -4,7 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 
 /**
  * GET /api/checkins
@@ -68,6 +68,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient();
+    const adminSupabase = createAdminClient();
 
     // Verify authenticated
     const {
@@ -88,32 +89,38 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify player belongs to user (unless admin)
-    const { data: userData } = await supabase
-      .from('users')
-      .select('role')
-      .eq('id', user.id)
+    // Use admin client to bypass RLS for verification
+    // Verify player belongs to user and organization
+    const { data: playerData } = await adminSupabase
+      .from('players')
+      .select('id, user_id, organization_id')
+      .eq('id', playerId)
       .single();
 
-    const isAdmin = (userData as { role: string } | null)?.role === 'admin';
-
-    if (!isAdmin) {
-      const { data: playerData } = await supabase
-        .from('players')
-        .select('id')
-        .eq('id', playerId)
-        .eq('user_id', user.id)
-        .single();
-
-      if (!playerData) {
-        return NextResponse.json(
-          { error: 'Not authorized to check in this player' },
-          { status: 403 }
-        );
-      }
+    if (!playerData) {
+      return NextResponse.json(
+        { error: 'Player not found' },
+        { status: 404 }
+      );
     }
 
-    // Upsert check-in (always include organization_id)
+    // Verify player belongs to user
+    if (playerData.user_id !== user.id) {
+      return NextResponse.json(
+        { error: 'Not authorized to check in this player' },
+        { status: 403 }
+      );
+    }
+
+    // Verify player belongs to the organization
+    if (playerData.organization_id !== organizationId) {
+      return NextResponse.json(
+        { error: 'Player does not belong to this organization' },
+        { status: 403 }
+      );
+    }
+
+    // Upsert check-in using admin client to bypass RLS
     const checkinData = {
       player_id: playerId,
       date,
@@ -121,7 +128,7 @@ export async function POST(request: NextRequest) {
       organization_id: organizationId,
     };
 
-    const { data, error } = await supabase
+    const { data, error } = await adminSupabase
       .from('checkins')
       .upsert(checkinData as never, { onConflict: 'player_id,date' })
       .select()
@@ -149,6 +156,7 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const supabase = await createClient();
+    const adminSupabase = createAdminClient();
 
     // Verify authenticated
     const {
@@ -170,33 +178,30 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Verify player belongs to user (unless admin)
-    const { data: userData } = await supabase
-      .from('users')
-      .select('role')
-      .eq('id', user.id)
+    // Use admin client to verify player belongs to user
+    const { data: playerData } = await adminSupabase
+      .from('players')
+      .select('id, user_id')
+      .eq('id', playerId)
       .single();
 
-    const isAdmin = (userData as { role: string } | null)?.role === 'admin';
-
-    if (!isAdmin) {
-      const { data: playerData } = await supabase
-        .from('players')
-        .select('id')
-        .eq('id', playerId)
-        .eq('user_id', user.id)
-        .single();
-
-      if (!playerData) {
-        return NextResponse.json(
-          { error: 'Not authorized to check out this player' },
-          { status: 403 }
-        );
-      }
+    if (!playerData) {
+      return NextResponse.json(
+        { error: 'Player not found' },
+        { status: 404 }
+      );
     }
 
-    // Delete check-in
-    const { error } = await supabase
+    // Verify player belongs to user
+    if (playerData.user_id !== user.id) {
+      return NextResponse.json(
+        { error: 'Not authorized to check out this player' },
+        { status: 403 }
+      );
+    }
+
+    // Delete check-in using admin client
+    const { error } = await adminSupabase
       .from('checkins')
       .delete()
       .eq('player_id', playerId)
