@@ -51,12 +51,13 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get check-ins for the date range
+    // Get check-ins for the date range (only 'checked_in' records)
     const { data, error } = await adminSupabase
       .from('checkins')
       .select('date, status')
       .eq('player_id', playerId)
       .eq('organization_id', organizationId)
+      .eq('status', 'checked_in')
       .gte('date', startDate)
       .lte('date', endDate);
 

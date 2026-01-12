@@ -192,31 +192,51 @@ export function CheckinClient({
     setLoadingDate(dateString);
 
     const currentStatus = checkins[dateString];
-    const newStatus = currentStatus === 'checked_in' ? 'checked_out' : 'checked_in';
+    const isCheckingOut = currentStatus === 'checked_in';
 
     try {
-      const response = await fetch('/api/checkins', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          playerId: playerId,
-          organizationId: orgId,
-          date: dateString,
-          status: newStatus,
-        }),
-      });
+      let response;
+
+      if (isCheckingOut) {
+        // Check out = DELETE the record
+        response = await fetch(
+          `/api/checkins?playerId=${playerId}&date=${dateString}&organizationId=${orgId}`,
+          { method: 'DELETE' }
+        );
+      } else {
+        // Check in = POST/create the record
+        response = await fetch('/api/checkins', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            playerId: playerId,
+            organizationId: orgId,
+            date: dateString,
+            status: 'checked_in',
+          }),
+        });
+      }
 
       if (response.ok) {
-        setCheckins((prev) => ({
-          ...prev,
-          [dateString]: newStatus,
-        }));
+        // Update local state
+        if (isCheckingOut) {
+          setCheckins((prev) => {
+            const newCheckins = { ...prev };
+            delete newCheckins[dateString];
+            return newCheckins;
+          });
+        } else {
+          setCheckins((prev) => ({
+            ...prev,
+            [dateString]: 'checked_in',
+          }));
+        }
 
         // Immediately refetch counts to update the badge
         refetchCounts();
 
         // Show toast notification
-        if (newStatus === 'checked_in') {
+        if (!isCheckingOut) {
           toast.success(`You're in for ${format(date, 'EEEE, MMM d')}!`, {
             description: 'Other players can see you\'re coming',
           });
@@ -230,6 +250,8 @@ export function CheckinClient({
           router.refresh();
         });
       } else {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Check-in error:', errorData);
         toast.error('Failed to update check-in');
       }
     } catch (error) {

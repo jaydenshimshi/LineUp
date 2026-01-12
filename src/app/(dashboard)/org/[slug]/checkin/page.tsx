@@ -74,11 +74,13 @@ export default async function CheckinPage({ params }: PageProps) {
   const startDate = today.toISOString().split('T')[0];
   const endDate = twoWeeksLater.toISOString().split('T')[0];
 
+  // Only fetch 'checked_in' records (checkout = delete record)
   const { data: checkins } = await adminSupabase
     .from('checkins')
     .select('date, status')
     .eq('player_id', playerData.id)
     .eq('organization_id', orgData.id)
+    .eq('status', 'checked_in')
     .gte('date', startDate)
     .lte('date', endDate);
 

@@ -174,6 +174,7 @@ export async function DELETE(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const playerId = searchParams.get('playerId');
     const date = searchParams.get('date');
+    const organizationId = searchParams.get('organizationId');
 
     if (!playerId || !date) {
       return NextResponse.json(
@@ -205,11 +206,18 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Delete check-in using admin client
-    const { error } = await adminSupabase
+    let query = adminSupabase
       .from('checkins')
       .delete()
       .eq('player_id', playerId)
       .eq('date', date);
+
+    // Also filter by organizationId if provided
+    if (organizationId) {
+      query = query.eq('organization_id', organizationId);
+    }
+
+    const { error } = await query;
 
     if (error) {
       console.error('Error deleting check-in:', error);
