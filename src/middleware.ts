@@ -8,7 +8,7 @@ import { updateSession } from '@/lib/supabase/middleware';
 /**
  * Public routes that don't require authentication
  */
-const PUBLIC_ROUTES = ['/login', '/register', '/auth/callback'];
+const PUBLIC_ROUTES = ['/login', '/register', '/auth/callback', '/join'];
 
 /**
  * Admin-only routes
