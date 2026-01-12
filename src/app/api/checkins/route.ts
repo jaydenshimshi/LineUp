@@ -81,9 +81,9 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { playerId, date, status, organizationId } = body;
 
-    if (!playerId || !date) {
+    if (!playerId || !date || !organizationId) {
       return NextResponse.json(
-        { error: 'playerId and date are required' },
+        { error: 'playerId, date, and organizationId are required' },
         { status: 400 }
       );
     }
@@ -113,16 +113,13 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Upsert check-in
-    const checkinData: Record<string, unknown> = {
+    // Upsert check-in (always include organization_id)
+    const checkinData = {
       player_id: playerId,
       date,
       status: status || 'checked_in',
+      organization_id: organizationId,
     };
-
-    if (organizationId) {
-      checkinData.organization_id = organizationId;
-    }
 
     const { data, error } = await supabase
       .from('checkins')
