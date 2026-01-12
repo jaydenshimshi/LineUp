@@ -1,12 +1,14 @@
 /**
- * Organization Home - Today View
+ * Organization Home - Next Session View
  * Main dashboard when inside an organization
+ * Shows the next game session (today before 10 AM, tomorrow after 10 AM)
  */
 
 import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
+import { getSessionDate } from '@/lib/session-date';
 import {
   Card,
   CardContent,
@@ -22,28 +24,21 @@ import type { Metadata } from 'next';
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
-  title: 'Today - Lineup',
-  description: 'Check in for today\'s game',
+  title: 'Next Session - Lineup',
+  description: 'Check in for your next game session',
 };
 
 interface PageProps {
   params: Promise<{ slug: string }>;
 }
 
-interface Announcement {
-  id: string;
-  title: string;
-  message: string;
-  scope_type: 'global' | 'date';
-  scope_date: string | null;
-  urgency: 'info' | 'important';
-}
-
 export default async function OrgHomePage({ params }: PageProps) {
   const { slug } = await params;
   const supabase = await createClient();
-  const today = new Date();
-  const todayString = format(today, 'yyyy-MM-dd');
+
+  // Get session date (today before 6 AM, tomorrow after 6 AM)
+  const { sessionDateString, isNextDay, displayLabel } = getSessionDate();
+  const today = new Date(); // Still need current date for display
 
   const {
     data: { user },
@@ -92,15 +87,16 @@ export default async function OrgHomePage({ params }: PageProps) {
   const membershipData = membership as { role: string; player_id: string | null } | null;
   const isAdmin = membershipData?.role === 'admin' || membershipData?.role === 'owner';
 
-  // Get announcements for this org (global + today-specific)
+  // Get announcements for this org (global + session-date-specific)
   const now = new Date().toISOString();
+  const todayString = format(today, 'yyyy-MM-dd'); // For announcements that are date-specific
   const { data: announcementsData } = await adminSupabase
     .from('announcements')
     .select('id, title, body, scope_type, scope_date, urgency')
     .eq('organization_id', orgData.id)
     .lte('visible_from', now)
     .or(`visible_until.is.null,visible_until.gte.${now}`)
-    .or(`scope_type.eq.global,scope_date.eq.${todayString}`)
+    .or(`scope_type.eq.global,scope_date.eq.${sessionDateString},scope_date.eq.${todayString}`)
     .order('urgency', { ascending: false })
     .order('created_at', { ascending: false })
     .limit(5);
@@ -136,22 +132,22 @@ export default async function OrgHomePage({ params }: PageProps) {
     };
   });
 
-  // Get today's check-in count
+  // Get session's check-in count (uses session date, not today)
   const { count: checkedInCount } = await adminSupabase
     .from('checkins')
     .select('*', { count: 'exact', head: true })
     .eq('organization_id', orgData.id)
-    .eq('date', todayString)
+    .eq('date', sessionDateString)
     .eq('status', 'checked_in');
 
-  // Get player's check-in status
+  // Get player's check-in status for the session
   let isCheckedIn = false;
   if (player) {
     const { data: checkin } = await adminSupabase
       .from('checkins')
       .select('id')
       .eq('player_id', (player as { id: string }).id)
-      .eq('date', todayString)
+      .eq('date', sessionDateString)
       .eq('status', 'checked_in')
       .single();
 
@@ -248,7 +244,7 @@ export default async function OrgHomePage({ params }: PageProps) {
             </div>
           )}
 
-          {/* Today Card */}
+          {/* Session Check-in Card */}
           <OrgTodayClient
             orgId={orgData.id}
             orgSlug={slug}
@@ -256,7 +252,9 @@ export default async function OrgHomePage({ params }: PageProps) {
             playerName={playerData.full_name}
             isCheckedIn={isCheckedIn}
             checkedInCount={checkedInCount || 0}
-            dateString={todayString}
+            dateString={sessionDateString}
+            sessionLabel={displayLabel}
+            isNextDay={isNextDay}
           />
 
           {/* Quick Actions - Compact */}

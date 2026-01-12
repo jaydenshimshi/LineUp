@@ -109,12 +109,8 @@ export function RatingForm({
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose} modal={true}>
-      <DialogContent
-        className="sm:max-w-md max-h-[85vh] overflow-y-auto fixed top-[50%] left-[50%] translate-x-[-50%] translate-y-[-50%]"
-        onPointerDownOutside={(e) => e.preventDefault()}
-        onInteractOutside={(e) => e.preventDefault()}
-      >
+    <Dialog open={isOpen} onOpenChange={onClose} modal>
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Rate {playerName}</DialogTitle>
           <DialogDescription>
@@ -132,20 +128,16 @@ export function RatingForm({
 
           <div className="space-y-3">
             <Label>Skill Rating</Label>
-            <div className="flex gap-3 justify-center">
+            <div className="flex gap-2 sm:gap-3 justify-center">
               {[1, 2, 3, 4, 5].map((star) => (
                 <button
                   key={star}
                   type="button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setRating(star);
-                  }}
-                  className={`w-12 h-12 sm:w-10 sm:h-10 rounded-lg border-2 flex items-center justify-center text-xl transition-colors touch-manipulation select-none ${
+                  onClick={() => setRating(star)}
+                  className={`w-11 h-11 sm:w-10 sm:h-10 rounded-lg border-2 flex items-center justify-center text-lg sm:text-xl transition-colors touch-manipulation select-none active:scale-95 ${
                     star <= rating
                       ? 'border-amber-400 bg-amber-50 dark:bg-amber-900/30'
-                      : 'border-gray-200 dark:border-gray-700'
+                      : 'border-gray-200 dark:border-gray-700 hover:border-amber-200'
                   }`}
                   disabled={isLoading}
                 >
@@ -175,22 +167,16 @@ export function RatingForm({
         <DialogFooter className="flex-col sm:flex-row gap-2">
           <Button
             variant="outline"
-            onClick={(e) => {
-              e.preventDefault();
-              onClose();
-            }}
+            onClick={onClose}
             disabled={isLoading}
-            className="w-full sm:w-auto"
+            className="w-full sm:w-auto h-11 sm:h-10"
           >
             Cancel
           </Button>
           <Button
-            onClick={(e) => {
-              e.preventDefault();
-              handleSubmit();
-            }}
+            onClick={handleSubmit}
             disabled={isLoading}
-            className="w-full sm:w-auto"
+            className="w-full sm:w-auto h-11 sm:h-10"
           >
             {isLoading ? 'Saving...' : 'Save Rating'}
           </Button>

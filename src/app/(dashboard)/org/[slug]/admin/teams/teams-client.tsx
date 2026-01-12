@@ -15,9 +15,12 @@ import {
   DragStartEvent,
   closestCenter,
   PointerSensor,
+  TouchSensor,
+  KeyboardSensor,
   useSensor,
   useSensors,
 } from '@dnd-kit/core';
+import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import {
   SortableContext,
   useSortable,
@@ -164,7 +167,7 @@ const sortByPosition = (a: TeamAssignment, b: TeamAssignment) => {
 // Draggable player card component
 function DraggablePlayerCard({
   assignment,
-  teamColor,
+  teamColor: _teamColor,
   isLocked,
 }: {
   assignment: TeamAssignment;
@@ -192,13 +195,16 @@ function DraggablePlayerCard({
   return (
     <div
       ref={setNodeRef}
-      style={style}
+      style={{
+        ...style,
+        touchAction: isLocked ? 'auto' : 'none', // Prevent scroll while dragging
+      }}
       {...attributes}
       {...listeners}
       className={cn(
-        'flex items-center justify-between py-2 px-3 rounded-lg border border-border/30 bg-background/50',
-        !isLocked && 'cursor-grab active:cursor-grabbing hover:bg-background',
-        isDragging && 'ring-2 ring-primary'
+        'flex items-center justify-between py-2 px-3 rounded-lg border border-border/30 bg-background/50 select-none',
+        !isLocked && 'cursor-grab active:cursor-grabbing hover:bg-background touch-manipulation',
+        isDragging && 'ring-2 ring-primary shadow-lg z-10'
       )}
     >
       <div className="flex items-center gap-2">
@@ -305,11 +311,11 @@ function TeamDropZone({
 
 export function TeamsClient({
   orgId,
-  orgSlug,
+  orgSlug: _orgSlug,
   date,
   checkedInPlayers,
   existingTeamRun,
-  adminId,
+  adminId: _adminId,
 }: TeamsClientProps) {
   const router = useRouter();
   const [isGenerating, setIsGenerating] = useState(false);
@@ -376,11 +382,21 @@ export function TeamsClient({
     setHasChanges(false);
   }, [existingTeamRun]);
 
+  // Configure sensors for pointer, touch, and keyboard accessibility
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 8,
+        distance: 8, // 8px movement before drag starts
       },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 200, // 200ms delay for touch to distinguish from scrolling
+        tolerance: 5, // Allow 5px movement during delay
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
     })
   );
 

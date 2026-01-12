@@ -451,7 +451,7 @@ export function OrganizationsClient({ memberships }: OrganizationsClientProps) {
 
       {/* Leave Group Confirmation Dialog */}
       <AlertDialog open={!!leaveOrgId} onOpenChange={() => setLeaveOrgId(null)}>
-        <AlertDialogContent className="max-w-[90vw] sm:max-w-lg fixed top-[50%] left-[50%] translate-x-[-50%] translate-y-[-50%]">
+        <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Leave {leaveOrgName}?</AlertDialogTitle>
             <AlertDialogDescription className="space-y-2">

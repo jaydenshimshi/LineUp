@@ -14,12 +14,14 @@ import { toast } from 'sonner';
 
 interface OrgTodayClientProps {
   orgId: string;
-  orgSlug: string;
+  orgSlug?: string; // Not used but kept for compatibility
   playerId: string;
   playerName: string;
   isCheckedIn: boolean;
   checkedInCount: number;
   dateString: string;
+  sessionLabel: string; // e.g., "Today (Mon, Jan 13)" or "Tomorrow (Tue, Jan 14)"
+  isNextDay: boolean; // True if checking in for tomorrow's session
 }
 
 const MINIMUM_PLAYERS = 6;
@@ -87,12 +89,13 @@ function getPlayerStatusMessage(
 
 export function OrgTodayClient({
   orgId,
-  orgSlug,
   playerId,
   playerName,
   isCheckedIn: initialCheckedIn,
   checkedInCount: initialCount,
   dateString,
+  sessionLabel,
+  isNextDay,
 }: OrgTodayClientProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -257,7 +260,14 @@ export function OrgTodayClient({
       />
       <CardHeader className="p-3 pb-2">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-sm font-semibold">Today&apos;s Game</CardTitle>
+          <div>
+            <CardTitle className="text-sm font-semibold">
+              {isNextDay ? 'Tomorrow\'s Game' : 'Today\'s Game'}
+            </CardTitle>
+            <p className="text-[10px] text-muted-foreground mt-0.5">
+              Checking in for {sessionLabel}
+            </p>
+          </div>
           <Badge
             variant={gameStatus === 'game_on' ? 'default' : 'secondary'}
             className={`text-[10px] h-5 transition-all ${
