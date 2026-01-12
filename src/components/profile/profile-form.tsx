@@ -19,7 +19,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { NativeSelect } from '@/components/ui/native-select';
+import { PositionPicker } from '@/components/ui/position-picker';
 import {
   Card,
   CardContent,
@@ -174,15 +174,15 @@ export function ProfileForm({ userId, initialData }: ProfileFormProps) {
 
           <div className="space-y-2">
             <Label htmlFor="main_position">Main Position *</Label>
-            <NativeSelect
-              id="main_position"
+            <PositionPicker
               value={mainPosition || ''}
-              onChange={(e) =>
-                setValue('main_position', e.target.value as ProfileFormData['main_position'])
+              onChange={(value) =>
+                setValue('main_position', value as ProfileFormData['main_position'])
               }
               disabled={isLoading}
               options={POSITION_OPTIONS}
               placeholder="Select your main position"
+              label="Select Main Position"
             />
             {errors.main_position && (
               <p className="text-sm text-red-500">
@@ -193,21 +193,16 @@ export function ProfileForm({ userId, initialData }: ProfileFormProps) {
 
           <div className="space-y-2">
             <Label htmlFor="alt_position">Alternate Position (Optional)</Label>
-            <NativeSelect
-              id="alt_position"
-              value={watch('alt_position') || 'none'}
-              onChange={(e) =>
-                setValue(
-                  'alt_position',
-                  e.target.value === 'none' ? null : (e.target.value as ProfileFormData['main_position'])
-                )
+            <PositionPicker
+              value={watch('alt_position') || null}
+              onChange={(value) =>
+                setValue('alt_position', value as ProfileFormData['main_position'] | null)
               }
               disabled={isLoading}
-              options={[
-                { value: 'none', label: 'None' },
-                ...POSITION_OPTIONS.filter((opt) => opt.value !== mainPosition),
-              ]}
-              placeholder="Select alternate position (optional)"
+              options={POSITION_OPTIONS.filter((opt) => opt.value !== mainPosition)}
+              placeholder="Select alternate position"
+              label="Select Alternate Position"
+              allowNone
             />
           </div>
 

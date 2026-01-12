@@ -63,6 +63,7 @@ export function CheckinClient({
 }: CheckinClientProps) {
   const router = useRouter();
   const [, startTransition] = useTransition();
+  // Use initialCheckins for first render only - refetchCheckins on mount will get fresh data
   const [checkins, setCheckins] = useState(initialCheckins);
   const [loadingDate, setLoadingDate] = useState<string | null>(null);
 
@@ -72,22 +73,17 @@ export function CheckinClient({
   const [checkedInPlayers, setCheckedInPlayers] = useState<CheckedInPlayer[]>([]);
   const [loadingPlayers, setLoadingPlayers] = useState(false);
 
-  const today = new Date();
+  // Memoize today's date to prevent recreating on every render
+  const today = useMemo(() => new Date(), []);
+  const startDateStr = useMemo(() => format(today, 'yyyy-MM-dd'), [today]);
+  const endDateStr = useMemo(() => format(addDays(today, 13), 'yyyy-MM-dd'), [today]);
 
-  // Sync local state when initialCheckins prop changes (e.g., after navigation)
-  useEffect(() => {
-    setCheckins(initialCheckins);
-  }, [initialCheckins]);
-
-  // Refetch checkins when component mounts or window regains focus
+  // Refetch checkins - defined before useEffects that use it
   const refetchCheckins = useCallback(async () => {
     try {
-      const startDate = format(today, 'yyyy-MM-dd');
-      const endDate = format(addDays(today, 13), 'yyyy-MM-dd');
-
       // Add cache busting and no-cache headers to ensure fresh data
       const response = await fetch(
-        `/api/checkins/player?playerId=${playerId}&organizationId=${orgId}&startDate=${startDate}&endDate=${endDate}&_t=${Date.now()}`,
+        `/api/checkins/player?playerId=${playerId}&organizationId=${orgId}&startDate=${startDateStr}&endDate=${endDateStr}&_t=${Date.now()}`,
         {
           cache: 'no-store',
           headers: {
@@ -114,7 +110,11 @@ export function CheckinClient({
     } catch (error) {
       console.error('Failed to refetch checkins:', error);
     }
-  }, [playerId, orgId, today]);
+  }, [playerId, orgId, startDateStr, endDateStr]);
+
+  // DON'T sync from initialCheckins - always use fresh API data
+  // This was causing the issue: server could return stale data which would override
+  // the correct local state
 
   // Game cutoff time - games are in the morning, so after 10 AM check-ins are for next day
   const GAME_CUTOFF_HOUR = 10;
