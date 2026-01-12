@@ -31,16 +31,16 @@ export default async function AdminDashboardPage() {
     .from('player_admin_ratings')
     .select('*', { count: 'exact', head: true });
 
-  const { count: announcementCount } = await supabase
+  const { count: announcementCount } = await (supabase
     .from('announcements')
-    .select('*', { count: 'exact', head: true })
+    .select('*', { count: 'exact', head: true }) as any)
     .eq('is_active', true);
 
   // Get today's date for checkins (Phase 2)
   const today = new Date().toISOString().split('T')[0];
-  const { count: checkinCount } = await supabase
+  const { count: checkinCount } = await (supabase
     .from('checkins')
-    .select('*', { count: 'exact', head: true })
+    .select('*', { count: 'exact', head: true }) as any)
     .eq('date', today)
     .eq('status', 'checked_in');
 

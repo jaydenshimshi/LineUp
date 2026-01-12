@@ -50,7 +50,7 @@ export default async function AdminCheckinsPage() {
   const todayString = format(today, 'yyyy-MM-dd');
 
   // Get today's check-ins with player details
-  const { data: checkinsData } = await supabase
+  const { data: checkinsData } = await (supabase
     .from('checkins')
     .select(`
       id,
@@ -58,7 +58,7 @@ export default async function AdminCheckinsPage() {
       status,
       created_at,
       players!inner(id, full_name, main_position, alt_position)
-    `)
+    `) as any)
     .eq('date', todayString)
     .order('created_at', { ascending: false });
 
@@ -75,9 +75,9 @@ export default async function AdminCheckinsPage() {
   }));
 
   // Get all players for manual check-in dropdown
-  const { data: allPlayersData } = await supabase
+  const { data: allPlayersData } = await (supabase
     .from('players')
-    .select('id, full_name, main_position, alt_position')
+    .select('id, full_name, main_position, alt_position') as any)
     .eq('profile_completed', true)
     .order('full_name');
 

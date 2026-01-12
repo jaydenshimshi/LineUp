@@ -23,9 +23,9 @@ export default async function AdminLayout({ children }: AdminLayoutProps) {
   }
 
   // Verify admin role
-  const { data: userData } = await supabase
+  const { data: userData } = await (supabase
     .from('users')
-    .select('role')
+    .select('role') as any)
     .eq('id', authUser.id)
     .single();
   const user = userData as { role: string } | null;

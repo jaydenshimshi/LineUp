@@ -33,9 +33,9 @@ export default async function CheckinPage() {
   }
 
   // Get player profile
-  const { data: playerData } = await supabase
+  const { data: playerData } = await (supabase
     .from('players')
-    .select('*')
+    .select('*') as any)
     .eq('user_id', authUser.id)
     .single();
   const player = playerData as Player | null;
@@ -53,9 +53,9 @@ export default async function CheckinPage() {
   );
 
   // Get player's check-ins for this week
-  const { data: playerCheckinsData } = await supabase
+  const { data: playerCheckinsData } = await (supabase
     .from('checkins')
-    .select('date, status')
+    .select('date, status') as any)
     .eq('player_id', player.id)
     .in('date', weekDates);
   const playerCheckins = (playerCheckinsData || []) as CheckinRow[];
@@ -63,9 +63,9 @@ export default async function CheckinPage() {
   // Get total check-in counts for each day
   const dayCounts: Record<string, number> = {};
   for (const date of weekDates) {
-    const { count } = await supabase
+    const { count } = await (supabase
       .from('checkins')
-      .select('*', { count: 'exact', head: true })
+      .select('*', { count: 'exact', head: true }) as any)
       .eq('date', date)
       .eq('status', 'checked_in');
     dayCounts[date] = count || 0;

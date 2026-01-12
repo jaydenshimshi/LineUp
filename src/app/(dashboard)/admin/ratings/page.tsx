@@ -35,14 +35,14 @@ export default async function AdminRatingsPage() {
   const supabase = await createClient();
 
   // Get all players with their ratings
-  const { data: playersData, error } = await supabase
+  const { data: playersData, error } = await (supabase
     .from('players')
     .select(
       `
       *,
       rating:player_admin_ratings (id, rating_stars, notes, rated_by_admin_id)
     `
-    )
+    ) as any)
     .eq('profile_completed', true)
     .order('full_name');
   const players = playersData as PlayerWithRating[] | null;

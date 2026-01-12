@@ -41,7 +41,7 @@ export default async function TeamsPage() {
   } = await supabase.auth.getUser();
 
   // Get today's check-ins with player data and ratings
-  const { data: checkinsData } = await supabase
+  const { data: checkinsData } = await (supabase
     .from('checkins')
     .select(`
       player_id,
@@ -54,7 +54,7 @@ export default async function TeamsPage() {
         alt_position,
         player_admin_ratings(rating_stars)
       )
-    `)
+    `) as any)
     .eq('date', todayString)
     .eq('status', 'checked_in');
 
@@ -72,9 +72,9 @@ export default async function TeamsPage() {
   }));
 
   // Get existing team run for today if any
-  const { data: teamRunData } = await supabase
+  const { data: teamRunData } = await (supabase
     .from('team_runs')
-    .select('*')
+    .select('*') as any)
     .eq('date', todayString)
     .single();
 
