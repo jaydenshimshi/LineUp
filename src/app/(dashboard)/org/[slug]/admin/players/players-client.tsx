@@ -328,14 +328,15 @@ export function PlayersClient({ orgId, players, todayCheckins = [], sessionDate:
 
     setIsEditing(true);
     try {
-      const response = await fetch(`/api/admin/players/${editingPlayerId}`, {
+      const response = await fetch('/api/admin/players', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          player_id: editingPlayerId,
+          organization_id: orgId,
           full_name: editName.trim(),
           age: parseInt(editAge),
           main_position: editPosition,
-          organization_id: orgId,
         }),
       });
 
@@ -358,7 +359,7 @@ export function PlayersClient({ orgId, players, todayCheckins = [], sessionDate:
     if (!confirm('Delete this player?')) return;
 
     try {
-      const response = await fetch(`/api/admin/players/${playerId}?organization_id=${orgId}`, {
+      const response = await fetch(`/api/admin/players?player_id=${playerId}&organization_id=${orgId}`, {
         method: 'DELETE',
       });
 
