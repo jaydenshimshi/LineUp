@@ -32,6 +32,8 @@ export function RegisterForm() {
   const [success, setSuccess] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [showResend, setShowResend] = useState(false);
+  const [resendEmail, setResendEmail] = useState('');
 
   const {
     register,
@@ -44,10 +46,11 @@ export function RegisterForm() {
   async function onSubmit(data: RegisterFormData) {
     setIsLoading(true);
     setError(null);
+    setShowResend(false);
 
     try {
       const supabase = createClient();
-      const { error: authError } = await supabase.auth.signUp({
+      const { data: signUpData, error: authError } = await supabase.auth.signUp({
         email: data.email,
         password: data.password,
         options: {
@@ -56,7 +59,23 @@ export function RegisterForm() {
       });
 
       if (authError) {
-        setError(authError.message);
+        // Check if user already exists
+        if (authError.message.includes('already registered') ||
+            authError.message.includes('already been registered')) {
+          setResendEmail(data.email);
+          setShowResend(true);
+          setError('This email is already registered. Check your inbox for a confirmation link, or click below to resend it.');
+        } else {
+          setError(authError.message);
+        }
+        return;
+      }
+
+      // Check if user already exists but unconfirmed (Supabase returns user with identities = [])
+      if (signUpData?.user?.identities?.length === 0) {
+        setResendEmail(data.email);
+        setShowResend(true);
+        setError('This email is already registered but not confirmed. Click below to resend the confirmation email.');
         return;
       }
 
@@ -64,6 +83,34 @@ export function RegisterForm() {
     } catch (err) {
       setError('An unexpected error occurred. Please try again.');
       console.error('Registration error:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function handleResendConfirmation() {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: resendEmail,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
+
+      if (error) {
+        setError(error.message);
+        return;
+      }
+
+      setSuccess(true);
+    } catch (err) {
+      setError('Failed to resend confirmation email. Please try again.');
+      console.error('Resend error:', err);
     } finally {
       setIsLoading(false);
     }
@@ -109,8 +156,21 @@ export function RegisterForm() {
       <form onSubmit={handleSubmit(onSubmit)}>
         <CardContent className="space-y-4">
           {error && (
-            <Alert variant="destructive">
-              <AlertDescription>{error}</AlertDescription>
+            <Alert variant={showResend ? 'default' : 'destructive'}>
+              <AlertDescription>
+                {error}
+                {showResend && (
+                  <Button
+                    type="button"
+                    variant="link"
+                    className="p-0 h-auto ml-1 text-primary underline"
+                    onClick={handleResendConfirmation}
+                    disabled={isLoading}
+                  >
+                    {isLoading ? 'Sending...' : 'Resend confirmation email'}
+                  </Button>
+                )}
+              </AlertDescription>
             </Alert>
           )}
 

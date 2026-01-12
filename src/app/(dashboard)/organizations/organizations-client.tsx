@@ -72,14 +72,22 @@ export function OrganizationsClient({ memberships }: OrganizationsClientProps) {
   const [isJoining, setIsJoining] = useState(false);
   const [joinDialogOpen, setJoinDialogOpen] = useState(false);
 
-  // Handle QR code scan - auto-open dialog with code from URL
+  // Handle QR code scan - auto-open dialog with code from URL or localStorage
   useEffect(() => {
     const codeFromUrl = searchParams.get('join');
+    const storedCode = localStorage.getItem('pendingJoinCode');
+
     if (codeFromUrl) {
       setJoinCode(codeFromUrl.toUpperCase());
       setJoinDialogOpen(true);
-      // Clean up URL
+      // Clean up URL and localStorage
       window.history.replaceState({}, '', '/organizations');
+      localStorage.removeItem('pendingJoinCode');
+    } else if (storedCode) {
+      // User just signed up/logged in with a pending join code
+      setJoinCode(storedCode.toUpperCase());
+      setJoinDialogOpen(true);
+      localStorage.removeItem('pendingJoinCode');
     }
   }, [searchParams]);
 

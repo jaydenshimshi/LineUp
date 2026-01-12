@@ -96,9 +96,9 @@ export function MembersClient({
 
   const isOwner = currentRole === 'owner';
 
-  // Generate the join URL for QR code
+  // Generate the join URL for QR code - uses /join/[code] for better UX
   const joinUrl = typeof window !== 'undefined'
-    ? `${window.location.origin}/organizations?join=${joinCode}`
+    ? `${window.location.origin}/join/${joinCode}`
     : '';
 
   const handleGenerateCode = async () => {
