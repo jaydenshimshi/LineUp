@@ -289,7 +289,7 @@ export function PlayersClient({ orgId, players, todayCheckins = [], sessionDate:
           full_name: newPlayerName.trim(),
           age: parseInt(newPlayerAge),
           main_position: newPlayerPosition,
-          rating: newPlayerRating,
+          rating_stars: newPlayerRating,
         }),
       });
 
