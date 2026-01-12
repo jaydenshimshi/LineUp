@@ -24,6 +24,7 @@ export interface Player {
   rating: number;
   mainPosition: Position;
   altPosition?: Position | null;
+  checkedInAt?: Date; // For first-come-first-serve sub determination
 }
 
 export interface PlayerAssignment {
@@ -443,9 +444,24 @@ export function solveTeams(players: Player[]): SolveResult {
 
   const { teamCount, teamSizes, subCount, teamColors } = determineTeamStructure(n);
   const totalPlaying = teamSizes.reduce((a, b) => a + b, 0);
-  const sortedPlayers = [...players].sort((a, b) => b.rating - a.rating);
-  const playingPlayers = sortedPlayers.slice(0, totalPlaying);
-  const subPlayers = sortedPlayers.slice(totalPlaying);
+
+  // HYBRID APPROACH: First-come-first-serve for playing spots, skill-based for team balance
+  // Sort by check-in time (earliest first) to determine who plays vs who becomes a sub
+  // Players who checked in first get priority for playing spots
+  const sortedByCheckin = [...players].sort((a, b) => {
+    if (a.checkedInAt && b.checkedInAt) {
+      return a.checkedInAt.getTime() - b.checkedInAt.getTime();
+    }
+    // If no check-in time, fall back to keeping original order
+    return 0;
+  });
+
+  // First N players (by check-in order) play, rest are subs
+  const playingPlayers = sortedByCheckin.slice(0, totalPlaying);
+  const subPlayers = sortedByCheckin.slice(totalPlaying);
+
+  console.log(`[SOLVER] Playing: ${playingPlayers.length} (first to check in)`);
+  console.log(`[SOLVER] Subs: ${subPlayers.length} (checked in late)`);
 
   // Try multiple strategies
   const strategies: [string, (p: Player[], tc: number, ts: number[]) => Player[][]][] = [
@@ -612,6 +628,7 @@ interface APIPlayer {
   rating?: number;
   main_position: string;
   alt_position?: string | null;
+  checked_in_at?: string; // ISO timestamp
 }
 
 export function parsePlayersFromAPI(data: APIPlayer[]): Player[] {
@@ -622,6 +639,7 @@ export function parsePlayersFromAPI(data: APIPlayer[]): Player[] {
     rating: p.rating || 3,
     mainPosition: p.main_position as Position,
     altPosition: p.alt_position as Position | null,
+    checkedInAt: p.checked_in_at ? new Date(p.checked_in_at) : undefined,
   }));
 }
 
