@@ -26,6 +26,15 @@ export async function middleware(request: NextRequest) {
   // Update session and get user
   const { supabaseResponse, user, supabase } = await updateSession(request);
 
+  // Add no-cache headers for checkin routes to prevent stale data
+  if (pathname.includes('/checkin') || pathname.includes('/api/checkins')) {
+    supabaseResponse.headers.set('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
+    supabaseResponse.headers.set('Pragma', 'no-cache');
+    supabaseResponse.headers.set('Expires', '0');
+    supabaseResponse.headers.set('CDN-Cache-Control', 'no-store');
+    supabaseResponse.headers.set('Vercel-CDN-Cache-Control', 'no-store');
+  }
+
   // Check if route is public
   const isPublicRoute = PUBLIC_ROUTES.some((route) =>
     pathname.startsWith(route)

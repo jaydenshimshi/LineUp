@@ -5,12 +5,15 @@
 
 import { redirect } from 'next/navigation';
 import { unstable_noStore as noStore } from 'next/cache';
+import { headers } from 'next/headers';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { CheckinClient } from './checkin-client';
 import type { Metadata } from 'next';
 
+// Disable ALL caching for this page
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+export const fetchCache = 'force-no-store';
 
 export const metadata: Metadata = {
   title: 'Check-in - Lineup',
@@ -143,8 +146,13 @@ export default async function CheckinPage({ params }: PageProps) {
     };
   });
 
+  // Pass a unique key to force component remount on every navigation
+  // This ensures fresh state and triggers useEffect on every page visit
+  const mountKey = `${playerData.id}-${Date.now()}`;
+
   return (
     <CheckinClient
+      key={mountKey}
       orgId={orgData.id}
       orgSlug={slug}
       playerId={playerData.id}

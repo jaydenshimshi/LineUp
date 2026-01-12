@@ -20,13 +20,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { PositionPicker } from '@/components/ui/position-picker';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
 
@@ -242,24 +236,23 @@ export function ProfileClient({
 
               <div>
                 <Label>Alternate Position (Optional)</Label>
-                <Select
-                  value={watch('alt_position') || ''}
-                  onValueChange={(val) =>
-                    setValue('alt_position', val as 'GK' | 'DF' | 'MID' | 'ST' | null)
-                  }
-                >
-                  <SelectTrigger className="mt-1.5">
-                    <SelectValue placeholder="Select backup position" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    {positions.map((pos) => (
-                      <SelectItem key={pos.value} value={pos.value}>
-                        {pos.emoji} {pos.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="mt-1.5">
+                  <PositionPicker
+                    value={watch('alt_position')}
+                    onChange={(val) =>
+                      setValue('alt_position', val as 'GK' | 'DF' | 'MID' | 'ST' | null)
+                    }
+                    options={positions
+                      .filter((p) => p.value !== mainPosition)
+                      .map((pos) => ({
+                        value: pos.value,
+                        label: `${pos.emoji} ${pos.label}`,
+                      }))}
+                    placeholder="Select backup position"
+                    label="Select Alternate Position"
+                    allowNone
+                  />
+                </div>
               </div>
             </CardContent>
           </Card>
