@@ -591,18 +591,27 @@ def solve_teams(
         # GK should have max 1, field positions (DF, MID, ST) can have more but we'll try to balance
         max_per_position = {Position.GK: 1, Position.DF: 3, Position.MID: 3, Position.ST: 3}
 
+        debug_log(f"Team {color.value} pos_counts before reassign: GK={pos_counts[Position.GK]}, DF={pos_counts[Position.DF]}, MID={pos_counts[Position.MID]}, ST={pos_counts[Position.ST]}")
+
         for pos in [Position.GK, Position.DF, Position.MID, Position.ST]:
             while pos_counts[pos] > max_per_position[pos]:
+                debug_log(f"  Excess {pos.value}: {pos_counts[pos]} > {max_per_position[pos]}, looking for player to reassign...")
                 reassigned = False
                 for player in team:
+                    has_alt = player.alt_pos is not None
+                    alt_diff = player.alt_pos != pos if player.alt_pos else False
+                    current_role = assigned_roles.get(player.player_id)
+                    debug_log(f"    Checking {player.name}: role={current_role}, alt_pos={player.alt_pos}, has_alt={has_alt}, alt_diff={alt_diff}")
                     if assigned_roles[player.player_id] == pos and player.alt_pos and player.alt_pos != pos:
                         # Reassign this player to their alternate position
+                        debug_log(f"    -> Reassigning {player.name} from {pos.value} to {player.alt_pos.value}")
                         assigned_roles[player.player_id] = player.alt_pos
                         pos_counts[pos] -= 1
                         pos_counts[player.alt_pos] += 1
                         reassigned = True
                         break
                 if not reassigned:
+                    debug_log(f"  No player found to reassign for {pos.value}")
                     break  # No more players with alt positions
 
         # Third pass: use alt positions to fill gaps for any missing positions
