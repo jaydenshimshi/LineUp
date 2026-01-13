@@ -493,6 +493,7 @@ def solve_teams(
     random.seed(seed)
 
     n = len(players)
+    logger.info(f"[SOLVER v4.1] Starting solve_teams for {n} players")
     debug_log(f"========== NEW SOLVE REQUEST ==========")
     debug_log(f"SOLVER: Python OR-Tools v4.0")
     debug_log(f"Solving for {n} players:")
@@ -597,6 +598,7 @@ def solve_teams(
         # GK should have max 1, field positions (DF, MID, ST) can have more but we'll try to balance
         max_per_position = {Position.GK: 1, Position.DF: 3, Position.MID: 3, Position.ST: 3}
 
+        logger.info(f"[SOLVER] Team {color.value} pos_counts: GK={pos_counts[Position.GK]}, DF={pos_counts[Position.DF]}, MID={pos_counts[Position.MID]}, ST={pos_counts[Position.ST]}")
         debug_log(f"Team {color.value} pos_counts before reassign: GK={pos_counts[Position.GK]}, DF={pos_counts[Position.DF]}, MID={pos_counts[Position.MID]}, ST={pos_counts[Position.ST]}")
 
         for pos in [Position.GK, Position.DF, Position.MID, Position.ST]:
@@ -610,6 +612,7 @@ def solve_teams(
                     debug_log(f"    Checking {player.name}: role={current_role}, alt_pos={player.alt_pos}, has_alt={has_alt}, alt_diff={alt_diff}")
                     if assigned_roles[player.player_id] == pos and player.alt_pos and player.alt_pos != pos:
                         # Reassign this player to their alternate position
+                        logger.info(f"[SOLVER] Reassigning {player.name} from {pos.value} to {player.alt_pos.value}")
                         debug_log(f"    -> Reassigning {player.name} from {pos.value} to {player.alt_pos.value}")
                         assigned_roles[player.player_id] = player.alt_pos
                         pos_counts[pos] -= 1
