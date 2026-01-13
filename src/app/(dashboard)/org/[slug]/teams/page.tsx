@@ -119,8 +119,9 @@ export default async function TeamsPage({ params }: PageProps) {
   };
 
   const sortByPosition = (a: TeamAssignment, b: TeamAssignment) => {
-    const posA = positionOrder[a.players.main_position] || 5;
-    const posB = positionOrder[b.players.main_position] || 5;
+    // Use assigned_role from solver if available, otherwise fall back to main_position
+    const posA = positionOrder[a.assigned_role || a.players.main_position] || 5;
+    const posB = positionOrder[b.assigned_role || b.players.main_position] || 5;
     return posA - posB;
   };
 

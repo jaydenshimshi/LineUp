@@ -373,7 +373,7 @@ export function AdminDashboardClient({
                               {assignment.players.full_name}
                             </span>
                             <span className="text-xs text-muted-foreground ml-2">
-                              {positionLabels[assignment.players.main_position]}
+                              {positionLabels[assignment.assigned_role || assignment.players.main_position]}
                             </span>
                           </div>
                         ))}
