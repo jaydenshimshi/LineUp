@@ -30,10 +30,16 @@ logger = logging.getLogger(__name__)
 DEBUG_FILE = os.path.join(os.path.dirname(__file__), 'solver_debug.log')
 
 def debug_log(message: str):
-    """Write debug message to file"""
+    """Write debug message to file and console"""
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    with open(DEBUG_FILE, 'a') as f:
-        f.write(f"[{timestamp}] {message}\n")
+    # Log to console (visible in Render)
+    logger.info(f"[SOLVER] {message}")
+    # Also write to file for local debugging
+    try:
+        with open(DEBUG_FILE, 'a') as f:
+            f.write(f"[{timestamp}] {message}\n")
+    except:
+        pass  # Ignore file write errors on ephemeral filesystems
 
 
 # =============================================================================
