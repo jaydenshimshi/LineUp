@@ -583,6 +583,9 @@ def solve_teams(
     assignments = []
     warnings = []
 
+    # Global dictionary to track all assigned roles (for logging and verification)
+    all_assigned_roles: Dict[str, Position] = {}
+
     for t, team in enumerate(best_teams):
         color = team_colors[t]
 
@@ -637,9 +640,11 @@ def solve_teams(
                             pos_counts[pos] += 1
                             break
 
-        # Create assignments
+        # Create assignments and update global tracking
         for player in team:
             role = assigned_roles[player.player_id]
+            all_assigned_roles[player.player_id] = role  # Track globally for logging
+            debug_log(f"  Creating assignment: {player.name} -> {color.value} as {role.value} (main_pos was {player.main_pos.value})")
             assignments.append(PlayerAssignment(
                 player_id=player.player_id,
                 player_name=player.name,
@@ -704,12 +709,20 @@ def solve_teams(
 
     solve_time_ms = (time.time() - start_time) * 1000
 
-    # Log final team compositions
-    debug_log(f"Final teams:")
+    # Log final team compositions with ASSIGNED roles (not main_pos)
+    debug_log(f"Final teams (with ASSIGNED roles):")
     for t, team in enumerate(best_teams):
-        players_str = ", ".join([f"{p.name}({p.rating}★ {p.main_pos.value})" for p in team])
-        debug_log(f"  Team {t}: [{players_str}] = {sum(p.rating for p in team)} pts")
+        color = team_colors[t]
+        # Use the actual assigned role, not main_pos
+        players_str = ", ".join([f"{p.name}({p.rating}★ {all_assigned_roles.get(p.player_id, p.main_pos).value})" for p in team])
+        debug_log(f"  Team {color.value}: [{players_str}] = {sum(p.rating for p in team)} pts")
     debug_log(f"Solution found in {solve_time_ms:.2f}ms using '{best_strategy}'")
+
+    # Final verification log - show actual assignments being returned
+    debug_log(f"=== FINAL ASSIGNMENTS BEING RETURNED ===")
+    for a in assignments:
+        debug_log(f"  {a.player_name}: team={a.team.value}, role={a.role.value}")
+    debug_log(f"========================================")
 
     return SolveResult(
         success=True,

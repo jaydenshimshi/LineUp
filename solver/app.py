@@ -70,7 +70,7 @@ def solve():
                 logger.info(f"  {p.get('name')}: {p.get('main_position')} (alt: {p.get('alt_position')})")
 
         result = solve_from_dict(players_data, timeout=timeout)
-        result['solver_version'] = '4.1.0'  # Version to verify deployment
+        result['solver_version'] = '4.2.0'  # Fixed: debug logs now show assigned roles correctly
 
         status_code = 200 if result.get('success') else 422
         return jsonify(result), status_code
