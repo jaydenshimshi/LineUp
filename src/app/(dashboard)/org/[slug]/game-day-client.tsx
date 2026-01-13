@@ -3,7 +3,7 @@
 /**
  * Game Day Client Component
  * Handles check-in toggle and status display for the next game session
- * Uses session date cutoff (6 AM) to determine which day to check into
+ * Uses session date cutoff (7 AM) to determine which day to check into
  */
 
 import { useState, useTransition, useEffect, useCallback } from 'react';

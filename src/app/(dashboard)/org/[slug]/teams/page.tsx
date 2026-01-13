@@ -45,7 +45,7 @@ export default async function TeamsPage({ params }: PageProps) {
   const supabase = await createClient();
   const adminSupabase = createAdminClient();
 
-  // Use session date (6 AM cutoff)
+  // Use session date (7 AM cutoff)
   const { sessionDateString, displayLabel } = getSessionDate();
 
   const {

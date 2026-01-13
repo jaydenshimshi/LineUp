@@ -1,7 +1,7 @@
 /**
  * Admin Dashboard Overview
  * Central hub for organization admins
- * Uses session date (6 AM cutoff)
+ * Uses session date (7 AM cutoff)
  */
 
 import { redirect } from 'next/navigation';
@@ -25,7 +25,7 @@ export default async function AdminDashboardPage({ params }: PageProps) {
   const { slug } = await params;
   const supabase = await createClient();
 
-  // Use session date (6 AM cutoff) for all data
+  // Use session date (7 AM cutoff) for all data
   const { sessionDateString, displayLabel } = getSessionDate();
 
   const {

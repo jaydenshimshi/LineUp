@@ -7,7 +7,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { format, addDays } from 'date-fns';
+import { getSessionDateString } from '@/lib/session-date';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -36,17 +36,6 @@ interface PlayersClientProps {
   todayCheckins?: string[];
   adminId?: string;
   sessionDate?: string;
-}
-
-// Session date calculation (matches session-date.ts)
-const SESSION_CUTOFF_HOUR = 6;
-
-function getSessionDateString(): string {
-  const now = new Date();
-  const currentHour = now.getHours();
-  const isAfterCutoff = currentHour >= SESSION_CUTOFF_HOUR;
-  const sessionDate = isAfterCutoff ? addDays(now, 1) : now;
-  return format(sessionDate, 'yyyy-MM-dd');
 }
 
 const positionLabels: Record<string, { label: string; emoji: string; color: string }> = {

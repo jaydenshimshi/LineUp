@@ -1,7 +1,7 @@
 /**
  * Admin Teams Generation Page
  * Generate and manage balanced teams
- * Uses session date (6 AM cutoff) for team generation
+ * Uses session date (7 AM cutoff) for team generation
  */
 
 import { redirect } from 'next/navigation';
@@ -25,7 +25,7 @@ export default async function AdminTeamsPage({ params }: PageProps) {
   const { slug } = await params;
   const supabase = await createClient();
 
-  // Use session date (6 AM cutoff) so teams are generated for the correct day
+  // Use session date (7 AM cutoff) so teams are generated for the correct day
   const { sessionDateString } = getSessionDate();
 
   const {

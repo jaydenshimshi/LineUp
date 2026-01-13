@@ -1,7 +1,7 @@
 /**
  * Admin Players Management Page
  * View players and manage skill ratings
- * Uses session date (6 AM cutoff) for check-ins
+ * Uses session date (7 AM cutoff) for check-ins
  */
 
 import { redirect } from 'next/navigation';
@@ -83,7 +83,7 @@ export default async function PlayersPage({ params }: PageProps) {
     .select('player_id, rating_stars')
     .eq('organization_id', orgData.id);
 
-  // Get session date check-ins (6 AM cutoff)
+  // Get session date check-ins (7 AM cutoff)
   const { sessionDateString } = getSessionDate();
   const { data: checkinsData } = await adminSupabase
     .from('checkins')
