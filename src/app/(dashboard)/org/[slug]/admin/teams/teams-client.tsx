@@ -133,8 +133,9 @@ const positionOrder: Record<string, number> = {
 };
 
 const sortByPosition = (a: TeamAssignment, b: TeamAssignment) => {
-  const posA = positionOrder[a.players.main_position] || 5;
-  const posB = positionOrder[b.players.main_position] || 5;
+  // Use assigned_role from solver if available, otherwise fall back to main_position
+  const posA = positionOrder[a.assigned_role || a.players.main_position] || 5;
+  const posB = positionOrder[b.assigned_role || b.players.main_position] || 5;
   return posA - posB;
 };
 
@@ -230,7 +231,7 @@ function PlayerTeamCard({
           <p className="text-sm font-medium truncate">{assignment.players.full_name}</p>
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground">
-              {positionLabels[assignment.players.main_position]}
+              {positionLabels[assignment.assigned_role || assignment.players.main_position]}
             </span>
             {isSub && assignment.bench_team && (
               <span className={cn("text-[10px] px-1.5 py-0.5 rounded capitalize", benchTeamColors?.badge)}>

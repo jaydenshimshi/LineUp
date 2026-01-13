@@ -144,14 +144,9 @@ export function TeamsViewClient({ orgName, teams, hasTeams, dateString, sessionL
                               </div>
                               <div className="flex flex-col items-end">
                                 <Badge variant="outline" className="text-[8px] h-4 px-1">
-                                  {positionLabels[assignment.players.main_position] ||
-                                    assignment.players.main_position}
+                                  {positionLabels[assignment.assigned_role || assignment.players.main_position] ||
+                                    assignment.assigned_role || assignment.players.main_position}
                                 </Badge>
-                                {assignment.players.alt_position && (
-                                  <span className="text-[7px] text-muted-foreground/70">
-                                    /{positionLabels[assignment.players.alt_position]}
-                                  </span>
-                                )}
                               </div>
                             </div>
                           ))}
@@ -200,13 +195,9 @@ export function TeamsViewClient({ orgName, teams, hasTeams, dateString, sessionL
                             </div>
                             <div className="flex flex-col items-end">
                               <Badge variant="outline" className="text-[8px] h-4 px-1">
-                                {positionLabels[assignment.players.main_position] || assignment.players.main_position}
+                                {positionLabels[assignment.assigned_role || assignment.players.main_position] ||
+                                  assignment.assigned_role || assignment.players.main_position}
                               </Badge>
-                              {assignment.players.alt_position && (
-                                <span className="text-[7px] text-muted-foreground/70">
-                                  /{positionLabels[assignment.players.alt_position]}
-                                </span>
-                              )}
                             </div>
                           </div>
                         );
